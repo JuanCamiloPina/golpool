@@ -1,0 +1,35 @@
+-- ============================================================
+-- Migration 007 — Fix infinite recursion in RLS policies
+-- Applied: Bug fix (dashboard + admin page showing no data)
+-- ============================================================
+-- Root cause:
+--   Migration 006 added a SELECT policy on pools:
+--
+--     "members can view pools they belong to"
+--     USING (id IN (SELECT pool_id FROM pool_members WHERE user_id = auth.uid()))
+--
+--   Migration 005 added a SELECT policy on pool_members:
+--
+--     "owners can see all members"
+--     USING (pool_id IN (SELECT id FROM pools WHERE owner_id = auth.uid()) OR ...)
+--
+--   These two policies form a cycle:
+--     pools policy → queries pool_members
+--       pool_members policy → queries pools
+--         pools policy → queries pool_members  …  42P17 infinite recursion
+--
+--   PostgreSQL evaluates ALL permissive SELECT policies (it does not
+--   short-circuit even when using(true) is already satisfied). So despite
+--   the "Pools are publicly viewable" using(true) policy existing alongside
+--   it, the recursive policy is still evaluated and blows up.
+--
+-- Fix:
+--   Drop the migration 006 policy. It is completely redundant:
+--   "Pools are publicly viewable" (using true, from migration 002 /
+--   schema.sql) already makes every pool row visible to every caller,
+--   so members can already see every pool they belong to — and every
+--   pool they don't belong to. Removing this policy restores correct
+--   behaviour for both pools and pool_members queries.
+-- ============================================================
+
+drop policy if exists "members can view pools they belong to" on public.pools;

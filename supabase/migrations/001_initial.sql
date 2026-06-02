@@ -1,0 +1,17 @@
+-- ============================================================
+-- Migration 001 — Initial schema
+-- Applied: project creation (Phase 1)
+-- ============================================================
+-- Reference only. This migration was applied by running
+-- schema.sql on a fresh Supabase project.
+--
+-- Tables created:
+--   profiles, pools, pool_members, rounds, matches,
+--   predictions, bonus_predictions, audit_log, notifications
+--
+-- Notable design decisions recorded here:
+--   • pool_members.status was added in migration 002
+--     (Phase 1 did not have this column)
+--   • pools SELECT policy was initially owner/member-only;
+--     changed to public in migration 002
+-- ============================================================
