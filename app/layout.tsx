@@ -34,7 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isAdmin = user ? adminEmails.includes((user.email ?? '').toLowerCase()) : false
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full light`} style={{ colorScheme: 'light' }}>
       <body className="min-h-full flex flex-col bg-white text-gray-900 antialiased">
         <LanguageProvider>
           <NavBar userEmail={user?.email ?? null} userName={userName} isAdmin={isAdmin} />
