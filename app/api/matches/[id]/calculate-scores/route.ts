@@ -36,7 +36,8 @@ export async function POST(
     return NextResponse.json({ error: 'Match has no official result yet' }, { status: 400 })
   }
 
-  const round = match.rounds as { name: string; scoring_multiplier: number }
+  const roundData = match.rounds as { name: string; scoring_multiplier: number }[]
+  const round = Array.isArray(roundData) ? roundData[0] : roundData as unknown as { name: string; scoring_multiplier: number }
   const pointsColumn = roundNameToPointsColumn(round.name)
 
   // ── Fetch all predictions for this match ──────────────────────
