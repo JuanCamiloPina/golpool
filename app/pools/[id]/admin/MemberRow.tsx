@@ -9,7 +9,7 @@ interface MemberRowProps {
   userId: string
   fullName: string
   email: string
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved' | 'rejected' | 'removed'
   onRefresh: () => void
 }
 
@@ -23,11 +23,11 @@ export default function MemberRow({
   onRefresh,
 }: MemberRowProps) {
   const { t } = useLang()
-  const [loading, setLoading]             = useState<'approve' | 'reject' | 'remove' | null>(null)
+  const [loading, setLoading]             = useState<'approve' | 'reject' | 'remove' | 'restore' | null>(null)
   const [confirmingRemove, setConfirming] = useState(false)
   const [error, setError]                 = useState<string | null>(null)
 
-  async function handleAction(action: 'approve' | 'reject') {
+  async function handleAction(action: 'approve' | 'reject' | 'restore') {
     setError(null)
     setLoading(action)
 
@@ -139,6 +139,17 @@ export default function MemberRow({
               Cancel
             </button>
           </div>
+        )}
+
+        {/* ── Removed: restore button ── */}
+        {status === 'removed' && (
+          <button
+            onClick={() => handleAction('restore')}
+            disabled={loading !== null}
+            className="text-xs font-semibold text-green-700 border border-green-200 rounded-full px-3 py-1 hover:bg-green-50 disabled:opacity-50 transition-colors shrink-0"
+          >
+            {loading === 'restore' ? '…' : t.admin.restore}
+          </button>
         )}
       </div>
     </div>

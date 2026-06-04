@@ -86,6 +86,16 @@ export const translations = {
       correctHome: 'Home goals',
       correctAway: 'Away goals',
       correctDiff: 'Goal difference',
+      notPredicted: 'Not predicted yet',
+      missingMatches: 'You have {n} matches without predictions. Unpredicted matches won\'t earn points. Continue saving?',
+      saveAnyway: 'Save anyway',
+      goBack: 'Go back',
+      savedCount: '{n} predictions saved!',
+      cancelConfirmMsg: 'You have made {n} unsaved predictions. Are you sure you want to cancel? Your changes will be lost.',
+      yesDiscard: 'Yes, discard changes',
+      keepEditing: 'Keep editing',
+      deadlineAt: '· Deadline:',
+      tbdMessage: 'Predictions unlock when teams are confirmed',
     },
     leaderboard: {
       title: 'Standings',
@@ -118,8 +128,12 @@ export const translations = {
       totalPoints: 'Bonus points',
       viewingPlayer: 'Viewing',
       myPredictions: 'My Bonus Picks',
+      searchHint: 'Type to search',
+      closesIn: 'Bonus picks close in:',
+      deadlineAt: '· Deadline:',
     },
     tabs: {
+      home: 'Home',
       predict: 'Predict',
       bonus: 'Bonus',
       standings: 'Standings',
@@ -141,8 +155,15 @@ export const translations = {
       descLabel: 'Description',
       descPlaceholder: 'A short description of your pool…',
       currencyLabel: 'Currency',
+      currencyForPrizesLabel: 'Currency for prizes',
       optional: 'optional',
       nameRequired: 'Pool name is required.',
+
+      joinModeQuestion: 'How should members join?',
+      joinModeApproval: 'Admin approval required',
+      joinModeApprovalDesc: 'You review and approve each join request',
+      joinModeOpen: 'Anyone with the link can join',
+      joinModeOpenDesc: 'Anyone with the invite link joins instantly',
 
       step2Label: 'Prize Setup',
       hasPrizeQuestion: 'Will this pool have a prize?',
@@ -187,6 +208,12 @@ export const translations = {
       archiveConfirm: 'Archive this pool? It will be hidden from your dashboard but all data will be preserved.',
       archiveSuccess: 'Pool archived',
       archiving: 'Archiving…',
+      exportMembers: 'Export Members',
+      exportFilename: 'Members',
+      openPool: 'Open pool',
+      approvalRequired: 'Approval required',
+      removedMembers: 'Removed Members',
+      restore: 'Restore',
     },
     dashboard: {
       welcome: 'Welcome back',
@@ -215,6 +242,11 @@ export const translations = {
       yourScore: 'your score',
       archivePool: 'Archive',
       archiveConfirm: 'Archive this pool? It will be hidden from your dashboard but all data will be preserved.',
+      poolsImInSubtitle: 'These are the pools you have joined. Click View Pool to start predicting!',
+      noJoinedFriendly: "You haven't joined any pools yet. Ask a friend for an invite link or join with a code!",
+      myPoolsSubtitle: 'These are the pools you have created.',
+      wantOwnPool: 'Want to run your own pool?',
+      viewAndPredict: 'View Pool → Start Predicting',
     },
     poolInfo: {
       back: '← Dashboard',
@@ -320,6 +352,26 @@ export const translations = {
       statusOpen: 'Open',
       statusPending: 'Not yet',
     },
+    poolWelcome: {
+      title: 'Welcome to {name}! 🎉',
+      subtitle: "Here's everything you need to know to get started",
+      howWorksTitle: 'How This Pool Works',
+      p1: 'The FIFA World Cup 2026 is divided into 8 stages. The first 3 are Group Stage matchdays, where every team plays 3 matches against teams in their group. After that, it\'s knockout football — Round of 32, Round of 16, Quarter-finals, Semi-finals, and the Final.',
+      p2: 'Your job is simple: predict the score of each match before it kicks off.',
+      p3a: 'You have until',
+      p3bold: '1 HOUR BEFORE the first match of each stage',
+      p3b: 'to lock in your predictions for that round. After that, no changes are allowed — so don\'t wait too long!',
+      p4: "The good news? You DON'T need to predict everything at once. Focus on the current stage, then come back to predict the next one as the tournament progresses. You can even adjust future predictions based on how teams are performing.",
+      p5: "One more thing: there's a Bonus section where you can predict the tournament winner, best player, top scorer, and more. These must be submitted alongside your first round of predictions — so don't miss it!",
+      btn1Title: 'Make Predictions',
+      btn1Sub: 'Predict match scores and earn points',
+      btn2Title: 'Bonus Picks',
+      btn2Sub: 'Predict the champion, Golden Ball, and more',
+      btn3Title: 'Rules & Participants',
+      btn3Sub: 'Full scoring rules, prizes, and who\'s playing',
+      btn4Title: 'Standings',
+      btn4Sub: "See who's leading the pool",
+    },
   },
   es: {
     nav: {
@@ -408,6 +460,16 @@ export const translations = {
       correctHome: 'Goles local',
       correctAway: 'Goles visitante',
       correctDiff: 'Diferencia de goles',
+      notPredicted: 'Sin predicción aún',
+      missingMatches: 'Tienes {n} partidos sin predicción. Los partidos sin predicción no ganarán puntos. ¿Continuar guardando?',
+      saveAnyway: 'Guardar de todas formas',
+      goBack: 'Volver',
+      savedCount: '¡{n} predicciones guardadas!',
+      cancelConfirmMsg: 'Tienes {n} predicciones sin guardar. ¿Seguro que quieres cancelar? Tus cambios se perderán.',
+      yesDiscard: 'Sí, descartar cambios',
+      keepEditing: 'Seguir editando',
+      deadlineAt: '· Fecha límite:',
+      tbdMessage: 'Las predicciones se activarán cuando se confirmen los equipos',
     },
     leaderboard: {
       title: 'Clasificación',
@@ -440,8 +502,12 @@ export const translations = {
       totalPoints: 'Puntos bonus',
       viewingPlayer: 'Viendo',
       myPredictions: 'Mis Picks Bonus',
+      searchHint: 'Escribe para buscar',
+      closesIn: 'Los picks bonus cierran en:',
+      deadlineAt: '· Fecha límite:',
     },
     tabs: {
+      home: 'Inicio',
       predict: 'Predicciones',
       bonus: 'Bonus',
       standings: 'Clasificación',
@@ -463,8 +529,15 @@ export const translations = {
       descLabel: 'Descripción',
       descPlaceholder: 'Una descripción breve de tu polla…',
       currencyLabel: 'Moneda',
+      currencyForPrizesLabel: 'Moneda del premio',
       optional: 'opcional',
       nameRequired: 'El nombre de la polla es obligatorio.',
+
+      joinModeQuestion: '¿Cómo deben unirse los miembros?',
+      joinModeApproval: 'Requiere aprobación del admin',
+      joinModeApprovalDesc: 'Tú revisas y apruebas cada solicitud',
+      joinModeOpen: 'Cualquiera con el enlace puede unirse',
+      joinModeOpenDesc: 'Cualquiera con el enlace de invitación se une al instante',
 
       step2Label: 'Premio',
       hasPrizeQuestion: '¿Esta polla tendrá un premio?',
@@ -509,6 +582,12 @@ export const translations = {
       archiveConfirm: '¿Archivar esta polla? Se ocultará de tu panel pero todos los datos se conservarán.',
       archiveSuccess: 'Polla archivada',
       archiving: 'Archivando…',
+      exportMembers: 'Exportar Miembros',
+      exportFilename: 'Miembros',
+      openPool: 'Polla abierta',
+      approvalRequired: 'Requiere aprobación',
+      removedMembers: 'Miembros eliminados',
+      restore: 'Restaurar',
     },
     dashboard: {
       welcome: 'Bienvenido de nuevo',
@@ -537,6 +616,11 @@ export const translations = {
       yourScore: 'tu puntaje',
       archivePool: 'Archivar',
       archiveConfirm: '¿Archivar esta polla? Se ocultará de tu panel pero todos los datos se conservarán.',
+      poolsImInSubtitle: 'Estas son las pollas a las que te has unido. ¡Haz clic en Ver Polla para empezar a predecir!',
+      noJoinedFriendly: 'Aún no te has unido a ninguna polla. ¡Pídele a un amigo un enlace de invitación o únete con un código!',
+      myPoolsSubtitle: 'Estas son las pollas que has creado.',
+      wantOwnPool: '¿Quieres crear tu propia polla?',
+      viewAndPredict: 'Ver Polla → Empezar a Predecir',
     },
     poolInfo: {
       back: '← Panel',
@@ -642,6 +726,26 @@ export const translations = {
       statusOpen: 'Abierto',
       statusPending: 'Aún no',
     },
+    poolWelcome: {
+      title: '¡Bienvenido a {name}! 🎉',
+      subtitle: 'Aquí todo lo que necesitas saber para empezar',
+      howWorksTitle: 'Cómo funciona esta polla',
+      p1: 'El Mundial FIFA 2026 está dividido en 8 etapas. Las primeras 3 son jornadas de la Fase de Grupos, donde cada equipo juega 3 partidos contra los equipos de su grupo. Después comienza el fútbol eliminatorio — Ronda de 32, Octavos de Final, Cuartos de Final, Semifinales y la Final.',
+      p2: 'Tu trabajo es simple: predice el marcador de cada partido antes de que empiece.',
+      p3a: 'Tienes hasta',
+      p3bold: '1 HORA ANTES del primer partido de cada etapa',
+      p3b: 'para confirmar tus predicciones de esa ronda. Después de eso, no se permiten cambios — ¡así que no esperes demasiado!',
+      p4: '¿Las buenas noticias? NO necesitas predecir todo de una vez. Concéntrate en la etapa actual y vuelve después para predecir la siguiente a medida que avanza el torneo. Incluso puedes ajustar predicciones futuras según cómo están rindiendo los equipos.',
+      p5: 'Una cosa más: hay una sección de Bonus donde puedes predecir el campeón del torneo, el mejor jugador, el máximo goleador y más. Debes enviarlos junto con tu primera ronda de predicciones — ¡no te lo pierdas!',
+      btn1Title: 'Hacer Predicciones',
+      btn1Sub: 'Predice marcadores y gana puntos',
+      btn2Title: 'Picks Bonus',
+      btn2Sub: 'Predice el campeón, Balón de Oro y más',
+      btn3Title: 'Reglas y Participantes',
+      btn3Sub: 'Reglas de puntuación, premios y quién juega',
+      btn4Title: 'Clasificación',
+      btn4Sub: 'Mira quién va liderando',
+    },
   },
 } as const
 
@@ -677,6 +781,8 @@ export interface Translations {
     viewingPlayer: string; myPredictions: string; selectPlayer: string; deadlineNotPassed: string
     statusFinished: string; statusLive: string; statusUpcoming: string
     correctResult: string; correctHome: string; correctAway: string; correctDiff: string
+    notPredicted: string; missingMatches: string; saveAnyway: string; goBack: string; savedCount: string
+    cancelConfirmMsg: string; yesDiscard: string; keepEditing: string; deadlineAt: string; tbdMessage: string
   }
   leaderboard: {
     title: string; player: string; total: string; noMembers: string; back: string
@@ -688,14 +794,16 @@ export interface Translations {
     goldenBall: string; goldenBoot: string; goldenGlove: string
     save: string; saving: string; saved: string; locked: string; placeholder: string; back: string
     edit: string; cancel: string; noAnswer: string; incompleteError: string
-    totalPoints: string; viewingPlayer: string; myPredictions: string
+    totalPoints: string; viewingPlayer: string; myPredictions: string; searchHint: string
+    closesIn: string; deadlineAt: string
   }
   tabs: {
-    predict: string; bonus: string; standings: string; poolInfo: string; manage: string
+    home: string; predict: string; bonus: string; standings: string; poolInfo: string; manage: string
   }
   createPool: {
     title: string; backDashboard: string; back: string; next: string; createPool: string; creating: string; genericError: string
-    step1Label: string; nameLabel: string; namePlaceholder: string; descLabel: string; descPlaceholder: string; currencyLabel: string; optional: string; nameRequired: string
+    step1Label: string; nameLabel: string; namePlaceholder: string; descLabel: string; descPlaceholder: string; currencyLabel: string; currencyForPrizesLabel: string; optional: string; nameRequired: string
+    joinModeQuestion: string; joinModeApproval: string; joinModeApprovalDesc: string; joinModeOpen: string; joinModeOpenDesc: string
     step2Label: string; hasPrizeQuestion: string; yesPrize: string; yesPrizeDesc: string; noPrize: string; noPrizeDesc: string; prizeChoiceRequired: string
     prizeTypeQuestion: string; fixedPrize: string; fixedPrizeDesc: string; perEntry: string; perEntryDesc: string; prizeTypeRequired: string
     step3aLabel: string; fixedDesc: string; first: string; second: string; third: string; prize1stRequired: string; prizePoolPreview: string; total: string
@@ -706,6 +814,9 @@ export interface Translations {
   admin: {
     removeButton: string; removeConfirm: string
     archivePool: string; archiveConfirm: string; archiveSuccess: string; archiving: string
+    exportMembers: string; exportFilename: string
+    openPool: string; approvalRequired: string
+    removedMembers: string; restore: string
   }
   dashboard: {
     welcome: string; myPools: string; poolsImIn: string
@@ -718,6 +829,8 @@ export interface Translations {
     badgePending: string; badgeApproved: string; badgeRejected: string
     awaitApproval: string; yourScore: string
     archivePool: string; archiveConfirm: string
+    poolsImInSubtitle: string; noJoinedFriendly: string
+    myPoolsSubtitle: string; wantOwnPool: string; viewAndPredict: string
   }
   poolInfo: {
     back: string; memberBadge: string
@@ -753,5 +866,13 @@ export interface Translations {
     // completion table
     completionTitle: string; completionSubtitle: string
     statusComplete: string; statusMissing: string; statusOpen: string; statusPending: string
+  }
+  poolWelcome: {
+    title: string; subtitle: string; howWorksTitle: string
+    p1: string; p2: string; p3a: string; p3bold: string; p3b: string; p4: string; p5: string
+    btn1Title: string; btn1Sub: string
+    btn2Title: string; btn2Sub: string
+    btn3Title: string; btn3Sub: string
+    btn4Title: string; btn4Sub: string
   }
 }

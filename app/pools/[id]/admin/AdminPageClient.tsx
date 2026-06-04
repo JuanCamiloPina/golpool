@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
 import CopyButton from './CopyButton'
@@ -16,7 +17,9 @@ interface Profile {
 interface Member {
   id: string
   user_id: string
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved' | 'rejected' | 'removed'
+  joined_at: string
+  total_points: number
   profiles: Profile | null
 }
 
@@ -26,6 +29,17 @@ interface Pool {
   description: string | null
   invite_code: string
   owner_id: string
+  auto_approve: boolean
+}
+
+const STATUS_ORDER: Record<string, number> = { approved: 0, pending: 1, rejected: 2, removed: 3 }
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${mm}/${dd}/${yyyy}`
 }
 
 export default function AdminPageClient({ poolId }: { poolId: string }) {
@@ -40,6 +54,7 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
   const [archiveConfirm, setArchiveConfirm] = useState(false)
   const [archiving, setArchiving]     = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
+  const [removedExpanded, setRemovedExpanded] = useState(false)
 
   const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
@@ -54,7 +69,7 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
 
       const { data: poolData, error: poolError } = await supabase
         .from('pools')
-        .select('id, name, description, invite_code, owner_id')
+        .select('id, name, description, invite_code, owner_id, auto_approve')
         .eq('id', poolId)
         .eq('is_archived', false)
         .single()
@@ -74,7 +89,7 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
 
       const { data: membersData } = await supabase
         .from('pool_members')
-        .select('id, status, user_id, profiles(full_name, email)')
+        .select('id, status, user_id, joined_at, total_points, profiles(full_name, email)')
         .eq('pool_id', poolId)
 
       setMembers((membersData ?? []) as unknown as Member[])
@@ -100,9 +115,48 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
     router.push('/dashboard')
   }
 
+  function handleExport() {
+    if (!pool) return
+
+    const statusLabel: Record<string, string> = {
+      approved: 'Approved',
+      pending:  'Pending',
+      rejected: 'Rejected',
+      removed:  'Removed',
+    }
+
+    const sorted = [...members].sort((a, b) => {
+      const sd = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+      if (sd !== 0) return sd
+      return (a.profiles?.full_name ?? '').localeCompare(b.profiles?.full_name ?? '')
+    })
+
+    const headers = ['Full Name', 'Email', 'Status', 'Joined Date', 'Total Points']
+
+    const rows = sorted.map((m) => [
+      m.profiles?.full_name ?? '',
+      m.profiles?.email ?? '',
+      statusLabel[m.status] ?? m.status,
+      m.joined_at ? fmtDate(m.joined_at) : '',
+      m.total_points ?? 0,
+    ])
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+
+    // Auto-fit column widths
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.max(h.length, ...rows.map((r) => String(r[i] ?? '').length)) + 2,
+    }))
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, t.admin.exportFilename)
+    XLSX.writeFile(wb, `${pool.name} - ${t.admin.exportFilename}.xlsx`)
+  }
+
   const pending  = members.filter((m) => m.status === 'pending')
   const approved = members.filter((m) => m.status === 'approved')
   const rejected = members.filter((m) => m.status === 'rejected')
+  const removed  = members.filter((m) => m.status === 'removed')
 
   const inviteUrl = pool ? `${window.location.origin}/join/${pool.invite_code}` : ''
 
@@ -137,16 +191,34 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
       </Link>
 
       {/* Pool header */}
-      <div className="mt-4 mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-gray-900">{pool.name}</h1>
-          <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
-            Admin
-          </span>
+      <div className="mt-4 mb-8 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h1 className="text-2xl font-bold text-gray-900">{pool.name}</h1>
+            <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
+              Admin
+            </span>
+            {pool.auto_approve ? (
+              <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5">
+                🔓 {t.admin.openPool}
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                🔐 {t.admin.approvalRequired}
+              </span>
+            )}
+          </div>
+          {pool.description && (
+            <p className="text-sm text-gray-500">{pool.description}</p>
+          )}
         </div>
-        {pool.description && (
-          <p className="text-sm text-gray-500">{pool.description}</p>
-        )}
+        <button
+          onClick={handleExport}
+          disabled={members.length === 0}
+          className="shrink-0 text-sm font-medium border border-gray-200 rounded-full px-4 py-1.5 hover:border-green-300 hover:text-green-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+        >
+          📥 {t.admin.exportMembers}
+        </button>
       </div>
 
       {/* Invite link */}
@@ -236,6 +308,39 @@ export default function AdminPageClient({ poolId }: { poolId: string }) {
               onRefresh={handleRefresh}
             />
           ))}
+        </section>
+      )}
+
+      {/* Removed Members (collapsed by default) */}
+      {removed.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setRemovedExpanded((v) => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h2 className="text-sm font-semibold text-gray-500">{t.admin.removedMembers}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{removed.length}</span>
+              <span className="text-gray-400 text-xs">{removedExpanded ? '▲' : '▼'}</span>
+            </div>
+          </button>
+          {removedExpanded && (
+            <div className="mt-3">
+              {removed.map((m) => (
+                <MemberRow
+                  key={m.id}
+                  poolId={poolId}
+                  memberId={m.id}
+                  userId={m.user_id}
+                  fullName={m.profiles?.full_name ?? '(no name)'}
+                  email={m.profiles?.email ?? m.user_id}
+                  status="removed"
+                  onRefresh={handleRefresh}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 

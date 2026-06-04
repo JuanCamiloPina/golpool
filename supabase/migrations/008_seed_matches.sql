@@ -16,18 +16,18 @@ alter table public.matches
 alter table public.rounds
   add column if not exists prediction_deadline timestamptz;
 
--- ── Prediction deadlines (15 min before first match of each round) ──
+-- ── Prediction deadlines (1 hour before first match of each round) ──
 
 update public.rounds
-  set prediction_deadline = '2026-06-11 13:45:00-04'   -- 15 min before Mexico vs South Africa
+  set prediction_deadline = '2026-06-11 13:00:00-04'   -- 1 hour before Mexico vs South Africa (14:00)
   where name = 'Group Stage – Matchday 1';
 
 update public.rounds
-  set prediction_deadline = '2026-06-18 11:45:00-04'   -- 15 min before Czech Republic vs South Africa
+  set prediction_deadline = '2026-06-18 11:00:00-04'   -- 1 hour before Czech Republic vs South Africa (12:00)
   where name = 'Group Stage – Matchday 2';
 
 update public.rounds
-  set prediction_deadline = '2026-06-24 14:45:00-04'   -- 15 min before earliest MD3 matches
+  set prediction_deadline = '2026-06-24 14:00:00-04'   -- 1 hour before earliest MD3 matches (15:00)
   where name = 'Group Stage – Matchday 3';
 
 -- ── Insert 72 group stage matches ────────────────────────────

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
 
-type MemberStatus = 'pending' | 'approved' | 'rejected'
+type MemberStatus = 'pending' | 'approved' | 'rejected' | 'removed'
 
 interface OwnedPool {
   id: string
@@ -15,7 +15,7 @@ interface OwnedPool {
   invite_code: string
   approvedCount: number
   pendingCount: number
-  myPoints: number | null   // null = owner not yet a member (migration 011 not run)
+  myPoints: number | null
 }
 
 interface JoinedPool {
@@ -44,14 +44,10 @@ export default function DashboardPage() {
       const supabase = createClient()
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/auth/login')
-        return
-      }
+      if (!user) { router.push('/auth/login'); return }
 
       setEmail(user.email ?? '')
 
-      // ── Profile ─────────────────────────────────────────────────
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name')
@@ -75,26 +71,15 @@ export default function DashboardPage() {
         const poolIds = ownedRaw.map((p) => p.id)
 
         const [{ data: memberRows }, { data: adminMemberships }] = await Promise.all([
-          supabase
-            .from('pool_members')
-            .select('pool_id, status')
-            .in('pool_id', poolIds),
-          // Admin's own membership row (added by api/pools/route.ts or migration 011)
-          supabase
-            .from('pool_members')
-            .select('pool_id, total_points')
-            .eq('user_id', user.id)
-            .in('pool_id', poolIds),
+          supabase.from('pool_members').select('pool_id, status').in('pool_id', poolIds),
+          supabase.from('pool_members').select('pool_id, total_points').eq('user_id', user.id).in('pool_id', poolIds),
         ])
 
         for (const row of memberRows ?? []) {
-          if (!memberCounts[row.pool_id]) {
-            memberCounts[row.pool_id] = { approved: 0, pending: 0 }
-          }
+          if (!memberCounts[row.pool_id]) memberCounts[row.pool_id] = { approved: 0, pending: 0 }
           if (row.status === 'approved') memberCounts[row.pool_id].approved++
           if (row.status === 'pending')  memberCounts[row.pool_id].pending++
         }
-
         for (const m of adminMemberships ?? []) {
           adminPointsMap[m.pool_id] = m.total_points
         }
@@ -102,10 +87,7 @@ export default function DashboardPage() {
 
       setOwnedPools(
         (ownedRaw ?? []).map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          invite_code: p.invite_code,
+          id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
           approvedCount: memberCounts[p.id]?.approved ?? 0,
           pendingCount:  memberCounts[p.id]?.pending  ?? 0,
           myPoints: adminPointsMap[p.id] ?? null,
@@ -119,7 +101,7 @@ export default function DashboardPage() {
         .eq('user_id', user.id)
 
       const ownedIds = new Set((ownedRaw ?? []).map((p) => p.id))
-      const nonOwned = (memberships ?? []).filter((m) => !ownedIds.has(m.pool_id))
+      const nonOwned = (memberships ?? []).filter((m) => !ownedIds.has(m.pool_id) && m.status !== 'removed')
 
       if (nonOwned.length > 0) {
         const { data: poolsData } = await supabase
@@ -132,12 +114,8 @@ export default function DashboardPage() {
           (poolsData ?? []).map((p) => {
             const m = nonOwned.find((m) => m.pool_id === p.id)!
             return {
-              id: p.id,
-              name: p.name,
-              description: p.description,
-              invite_code: p.invite_code,
-              status: m.status as MemberStatus,
-              total_points: m.total_points,
+              id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
+              status: m.status as MemberStatus, total_points: m.total_points,
             }
           })
         )
@@ -151,9 +129,7 @@ export default function DashboardPage() {
 
   async function handleArchive(poolId: string) {
     const res = await fetch(`/api/pools/${poolId}/archive`, { method: 'PATCH' })
-    if (res.ok) {
-      setOwnedPools((prev) => prev.filter((p) => p.id !== poolId))
-    }
+    if (res.ok) setOwnedPools((prev) => prev.filter((p) => p.id !== poolId))
     setArchivingId(null)
   }
 
@@ -165,9 +141,7 @@ export default function DashboardPage() {
           <div className="h-4 bg-gray-100 rounded w-40" />
         </div>
         <div className="animate-pulse grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-48 bg-gray-100 rounded-2xl" />
-          ))}
+          {[1, 2, 3].map((i) => <div key={i} className="h-48 bg-gray-100 rounded-2xl" />)}
         </div>
       </div>
     )
@@ -184,31 +158,111 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-gray-500">{email}</p>
       </div>
 
-      {/* ── My Pools (owned) ── */}
+      {/* ── PRIMARY: Pools I'm In ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">{d.myPools}</h2>
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{d.poolsImIn}</h2>
+            <p className="mt-0.5 text-sm text-gray-500 max-w-lg">{d.poolsImInSubtitle}</p>
+          </div>
+          <Link
+            href="/pools/join"
+            className="shrink-0 text-sm font-medium border border-gray-200 rounded-full px-4 py-1.5 hover:border-green-300 hover:text-green-700 transition-colors"
+          >
+            {d.joinPool}
+          </Link>
+        </div>
+
+        {joinedPools.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 py-10 px-6 text-center mt-4">
+            <span className="text-4xl">🔗</span>
+            <p className="mt-3 text-sm text-gray-500 max-w-sm mx-auto">{d.noJoinedFriendly}</p>
+            <Link
+              href="/pools/join"
+              className="mt-4 inline-flex items-center justify-center rounded-full bg-green-600 text-white font-semibold px-6 py-2.5 hover:bg-green-700 transition-colors text-sm"
+            >
+              {d.joinPool}
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {joinedPools.map((pool) => {
+              const badge = ({
+                pending:  { label: d.badgePending,  cls: 'text-amber-700 bg-amber-50 border-amber-200' },
+                approved: { label: d.badgeApproved, cls: 'text-green-700 bg-green-50 border-green-200' },
+                rejected: { label: d.badgeRejected, cls: 'text-gray-400 bg-gray-50 border-gray-200' },
+                removed:  { label: d.badgeRejected, cls: 'text-gray-400 bg-gray-50 border-gray-200' },
+              } as Record<string, { label: string; cls: string }>)[pool.status]
+
+              return (
+                <div
+                  key={pool.id}
+                  className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-bold text-gray-900 leading-snug">{pool.name}</h3>
+                    <span className={`shrink-0 text-xs font-semibold border rounded-full px-2 py-0.5 ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+
+                  {pool.description && (
+                    <p className="text-xs text-gray-500 line-clamp-2">{pool.description}</p>
+                  )}
+
+                  {pool.status === 'approved' && (
+                    <p className="text-xs text-gray-500">
+                      <span className="font-semibold text-green-600 text-sm">{pool.total_points}</span>{' '}
+                      {d.pts}
+                    </p>
+                  )}
+
+                  {pool.status === 'pending' && (
+                    <p className="text-xs text-amber-600">{d.awaitApproval}</p>
+                  )}
+
+                  {pool.status === 'approved' && (
+                    <Link
+                      href={`/pools/${pool.id}`}
+                      className="mt-auto block text-center text-sm font-semibold text-white bg-green-600 rounded-full py-2.5 hover:bg-green-700 transition-colors"
+                    >
+                      {d.viewAndPredict}
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── SECONDARY: My Pools (owned) ── */}
+      <section>
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-500">{d.myPools}</h2>
+            <p className="mt-0.5 text-sm text-gray-400">{d.myPoolsSubtitle}</p>
+          </div>
           <Link
             href="/pools/create"
-            className="text-sm font-semibold bg-green-600 text-white rounded-full px-4 py-1.5 hover:bg-green-700 transition-colors"
+            className="shrink-0 text-sm font-medium border border-gray-200 rounded-full px-4 py-1.5 hover:border-green-300 hover:text-green-700 transition-colors"
           >
-            {d.createPool}
+            + {d.createPool}
           </Link>
         </div>
 
         {ownedPools.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 py-12 text-center">
-            <span className="text-4xl">⚽</span>
-            <p className="mt-3 text-sm text-gray-500">{d.noOwned}</p>
+          <div className="mt-4 py-5 px-4 text-center rounded-2xl border border-dashed border-gray-200">
+            <p className="text-sm text-gray-400">{d.wantOwnPool}</p>
             <Link
               href="/pools/create"
-              className="mt-4 inline-flex items-center justify-center rounded-full bg-green-600 text-white font-semibold px-6 py-2.5 hover:bg-green-700 transition-colors text-sm"
+              className="mt-1.5 inline-flex text-sm font-medium text-green-600 hover:text-green-700 transition-colors"
             >
-              {d.createPool}
+              {d.createPool} →
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {ownedPools.map((pool) => (
               <div
                 key={pool.id}
@@ -241,7 +295,6 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Show admin's own participation */}
                 {pool.myPoints !== null && (
                   <p className="text-xs text-gray-500">
                     <span className="font-semibold text-green-600 text-sm">{pool.myPoints}</span>{' '}
@@ -266,7 +319,6 @@ export default function DashboardPage() {
                   </Link>
                 </div>
 
-                {/* Archive confirmation */}
                 {archivingId === pool.id ? (
                   <div className="rounded-xl bg-red-50 border border-red-200 p-3 space-y-2">
                     <p className="text-xs text-red-700">{d.archiveConfirm}</p>
@@ -299,79 +351,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ── Pools I'm In (joined) ── */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">{d.poolsImIn}</h2>
-          <Link
-            href="/pools/join"
-            className="text-sm font-medium border border-gray-200 rounded-full px-4 py-1.5 hover:border-green-300 hover:text-green-700 transition-colors"
-          >
-            {d.joinPool}
-          </Link>
-        </div>
-
-        {joinedPools.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 py-12 text-center">
-            <span className="text-4xl">🔗</span>
-            <p className="mt-3 text-sm text-gray-500">{d.noJoined}</p>
-            <Link
-              href="/pools/join"
-              className="mt-4 inline-flex items-center justify-center rounded-full border border-gray-300 text-gray-700 font-medium px-6 py-2.5 hover:border-green-400 transition-colors text-sm"
-            >
-              {d.joinPool}
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {joinedPools.map((pool) => {
-              const badge = {
-                pending:  { label: d.badgePending,  cls: 'text-amber-700 bg-amber-50 border-amber-200' },
-                approved: { label: d.badgeApproved, cls: 'text-green-700 bg-green-50 border-green-200' },
-                rejected: { label: d.badgeRejected, cls: 'text-gray-400 bg-gray-50 border-gray-200' },
-              }[pool.status]
-
-              return (
-                <div
-                  key={pool.id}
-                  className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-gray-900 leading-snug">{pool.name}</h3>
-                    <span className={`shrink-0 text-xs font-semibold border rounded-full px-2 py-0.5 ${badge.cls}`}>
-                      {badge.label}
-                    </span>
-                  </div>
-
-                  {pool.description && (
-                    <p className="text-xs text-gray-500 line-clamp-2">{pool.description}</p>
-                  )}
-
-                  {pool.status === 'approved' && (
-                    <p className="text-xs text-gray-500">
-                      <span className="font-semibold text-green-600 text-sm">{pool.total_points}</span>{' '}
-                      {d.pts}
-                    </p>
-                  )}
-
-                  {pool.status === 'pending' && (
-                    <p className="text-xs text-amber-600">{d.awaitApproval}</p>
-                  )}
-
-                  {pool.status === 'approved' && (
-                    <Link
-                      href={`/pools/${pool.id}`}
-                      className="mt-auto text-center text-sm font-medium text-green-600 border border-green-200 rounded-full py-1.5 hover:bg-green-50 transition-colors"
-                    >
-                      {d.view}
-                    </Link>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
     </div>
   )
 }

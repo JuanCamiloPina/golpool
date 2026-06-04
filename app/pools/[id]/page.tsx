@@ -6,10 +6,14 @@ import PoolInfoApproved from './PoolInfoApproved'
 
 export default async function PoolPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string }>
 }) {
   const { id } = await params
+  const { tab } = await searchParams
+  const isInfoTab = tab === 'info'
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -85,6 +89,29 @@ export default async function PoolPage({
     )
   }
 
+  if (!isAdmin && membership?.status === 'removed') {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+        <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+          ← Back to dashboard
+        </Link>
+        <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
+          <span className="text-4xl">🚫</span>
+          <h1 className="mt-4 text-xl font-bold text-gray-900">{pool.name}</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            You have been removed from this pool.
+          </p>
+          <Link
+            href={`/join/${pool.invite_code}`}
+            className="mt-6 inline-block text-sm font-medium text-green-700 underline underline-offset-2"
+          >
+            Request to rejoin
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   // ── Approved member — fetch owner profile via admin client ──────────
   // (member list is fetched client-side by PoolInfoApproved via API route)
   const admin = createAdminClient()
@@ -98,6 +125,7 @@ export default async function PoolPage({
   return (
     <PoolInfoApproved
       poolId={id}
+      isInfoTab={isInfoTab}
       poolName={pool.name}
       poolDescription={pool.description}
       inviteCode={pool.invite_code}

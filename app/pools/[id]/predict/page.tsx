@@ -5,8 +5,10 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
+import PoolTabs from '@/components/PoolTabs'
 import { getTeamName, getTeamFlagCode } from '@/lib/wc2026-teams'
 import FlagImage from '@/components/FlagImage'
+import { formatMatchDateTime, formatDeadlineShort } from '@/lib/date-utils'
 
 interface Round {
   id: number
@@ -70,13 +72,6 @@ function useCountdown(deadline: string | null) {
   return { label, closed }
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/New_York', timeZoneName: 'short',
-  })
-}
 
 function StatusBadge({ match, tp }: { match: Match; tp: ReturnType<typeof useTranslations> }) {
   if (match.status === 'live') {
@@ -107,6 +102,10 @@ function useTranslations() {
   return t.predict
 }
 
+function isTeamTBD(team: string): boolean {
+  return /^(W Match|L Match|W Group|RU Group|Best 3rd)/.test(team)
+}
+
 export default function PredictPage() {
   const { t, lang } = useLang()
   const tp = t.predict
@@ -118,8 +117,11 @@ export default function PredictPage() {
   const [selectedRound, setRound]     = useState<Round | null>(null)
   const [matches, setMatches]         = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
+  const [originalPredictions, setOriginalPredictions] = useState<Record<string, Prediction>>({})
   const [isEditing, setIsEditing]     = useState(false)
-  const [invalidMatchIds, setInvalidIds] = useState<Set<string>>(new Set())
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const [missingCount, setMissingCount] = useState(0)
   const [loading, setLoading]         = useState(true)
   const [loadingMatches, setLM]       = useState(false)
   const [saving, setSaving]           = useState(false)
@@ -179,7 +181,7 @@ export default function PredictPage() {
     if (!userId) return
     setLM(true)
     setIsEditing(false)
-    setInvalidIds(new Set())
+    setConfirmOpen(false)
 
     // Reset viewing when changing rounds without a specific viewer
     if (!forUserId) {
@@ -237,42 +239,45 @@ export default function PredictPage() {
   }, [selectedRound, userId, loadMatches])
 
   // ── Save predictions ──────────────────────────────────────────────────────
-  async function handleSave() {
+  async function handleSave(skipConfirm = false) {
     if (!userId || !selectedRound || closed) return
 
     const scheduled = matches.filter((m) => m.status === 'scheduled')
-    const missing = new Set(
-      scheduled
-        .filter((m) => {
-          const p = predictions[m.id] ?? { home: '', away: '' }
-          return p.home === '' || p.away === ''
-        })
-        .map((m) => m.id)
-    )
 
-    if (missing.size > 0) {
-      setInvalidIds(missing)
-      setError(tp.incompleteError)
+    // Only save rows where BOTH home and away are filled
+    const filledRows = scheduled
+      .filter((m) => {
+        const p = predictions[m.id] ?? { home: '', away: '' }
+        return p.home !== '' && p.away !== ''
+      })
+      .map((m) => {
+        const p = predictions[m.id]!
+        return {
+          user_id:              userId,
+          pool_id:              poolId,
+          match_id:             m.id,
+          predicted_home_score: Number(p.home),
+          predicted_away_score: Number(p.away),
+        }
+      })
+
+    const unpredicted = scheduled.length - filledRows.length
+
+    // If some matches are unfilled, ask for confirmation first
+    if (!skipConfirm && unpredicted > 0) {
+      setMissingCount(unpredicted)
+      setConfirmOpen(true)
       return
     }
 
-    setSaving(true); setError(null); setSaveMsg(null); setInvalidIds(new Set())
+    if (filledRows.length === 0) return
 
-    const rows = scheduled.map((m) => {
-      const p = predictions[m.id]!
-      return {
-        user_id:              userId,
-        pool_id:              poolId,
-        match_id:             m.id,
-        predicted_home_score: Number(p.home),
-        predicted_away_score: Number(p.away),
-      }
-    })
+    setSaving(true); setError(null); setSaveMsg(null)
 
     const res = await fetch(`/api/pools/${poolId}/predictions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows, round_id: selectedRound.id }),
+      body: JSON.stringify({ rows: filledRows, round_id: selectedRound.id }),
     })
     const upsertError = res.ok ? null : await res.json().then((d: { error?: string }) => ({ message: d.error ?? 'Save failed' }))
 
@@ -280,15 +285,23 @@ export default function PredictPage() {
     if (upsertError) {
       setError(upsertError.message)
     } else {
-      setSaveMsg(tp.saved)
+      const msg = tp.savedCount.replace('{n}', String(filledRows.length))
+      setSaveMsg(msg)
       setIsEditing(false)
-      setTimeout(() => setSaveMsg(null), 2000)
+      setConfirmOpen(false)
+      setTimeout(() => setSaveMsg(null), 3000)
     }
   }
 
   const mul = selectedRound?.scoring_multiplier ?? 1
   const isGroupStage = selectedRound ? selectedRound.id <= 3 : true
   const isViewingOther = !!viewingUserId
+
+  const cancelChangedCount = matches.filter((m) => {
+    const cur = predictions[m.id] ?? { home: '', away: '' }
+    const orig = originalPredictions[m.id] ?? { home: '', away: '' }
+    return cur.home !== orig.home || cur.away !== orig.away
+  }).length
 
   // Round summary computed client-side
   const finishedMatches = matches.filter((m) => m.home_score !== null)
@@ -307,13 +320,6 @@ export default function PredictPage() {
     if (!byGroup[g]) byGroup[g] = []
     byGroup[g].push(m)
   }
-
-  const tabs = [
-    { label: t.tabs.predict,   href: `/pools/${poolId}/predict`     },
-    { label: t.tabs.bonus,     href: `/pools/${poolId}/bonus`       },
-    { label: t.tabs.standings, href: `/pools/${poolId}/leaderboard` },
-    { label: t.tabs.poolInfo,  href: `/pools/${poolId}`             },
-  ]
 
   if (loading) {
     return (
@@ -335,20 +341,8 @@ export default function PredictPage() {
         <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
           {tp.back}
         </Link>
-        <div className="flex gap-1 border-b border-gray-100 mt-4 overflow-x-auto">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                tab.href === `/pools/${poolId}/predict`
-                  ? 'border-green-500 text-green-700'
-                  : 'border-transparent text-gray-500 hover:text-green-700 hover:border-green-400'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
+        <div className="mt-4">
+          <PoolTabs poolId={poolId} activeTab="predict" />
         </div>
       </div>
 
@@ -364,6 +358,10 @@ export default function PredictPage() {
                 <span className="text-gray-500">
                   {tp.deadlineLabel}{' '}
                   <span className="font-semibold text-green-700 tabular-nums">{countdown}</span>
+                  {' '}
+                  <span className="text-xs text-gray-400">
+                    {tp.deadlineAt} {formatDeadlineShort(selectedRound.prediction_deadline, lang)}
+                  </span>
                 </span>
               )}
             </div>
@@ -373,14 +371,20 @@ export default function PredictPage() {
         {matches.length > 0 && !closed && !isViewingOther && (
           isEditing ? (
             <button
-              onClick={() => { setIsEditing(false); setSaveMsg(null); setError(null); setInvalidIds(new Set()) }}
+              onClick={() => {
+                if (cancelChangedCount > 0) {
+                  setCancelConfirmOpen(true)
+                } else {
+                  setIsEditing(false); setSaveMsg(null); setError(null); setConfirmOpen(false)
+                }
+              }}
               className="rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-600 hover:border-gray-400 transition-colors"
             >
               {tp.cancel}
             </button>
           ) : (
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={() => { setOriginalPredictions({ ...predictions }); setIsEditing(true) }}
               className="rounded-full border border-green-300 px-4 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
             >
               {tp.edit}
@@ -496,9 +500,9 @@ export default function PredictPage() {
               )}
               <div className="space-y-3">
                 {gMatches.map((match) => {
-                  const pred    = predictions[match.id] ?? { home: '', away: '' }
-                  const locked  = closed || match.status !== 'scheduled'
-                  const invalid = invalidMatchIds.has(match.id)
+                  const pred      = predictions[match.id] ?? { home: '', away: '' }
+                  const isTBD     = isTeamTBD(match.home_team) || isTeamTBD(match.away_team)
+                  const locked    = closed || match.status !== 'scheduled'
                   const hasResult = match.home_score !== null
                   const hasPred   = pred.home !== '' && pred.away !== ''
 
@@ -513,7 +517,6 @@ export default function PredictPage() {
                     <div
                       key={match.id}
                       className={`rounded-xl border bg-white transition-colors ${
-                        invalid   ? 'border-red-400 shadow-sm' :
                         hasResult ? 'border-gray-200 shadow-sm' :
                         locked    ? 'border-gray-100 opacity-80' :
                                     'border-gray-100 shadow-sm'
@@ -521,25 +524,43 @@ export default function PredictPage() {
                     >
                       {/* Top row: date + status */}
                       <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                        <p className="text-xs text-gray-400">{fmtDate(match.match_date)}</p>
+                        <p className="text-xs text-gray-400">{formatMatchDateTime(match.match_date, lang)}</p>
                         <div className="flex items-center gap-2">
+                          {/* "Not predicted" badge — view mode, open round, no existing prediction */}
+                          {!isEditing && !locked && !isTBD && !hasPred && !isViewingOther && (
+                            <span className="text-xs font-medium text-red-500 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                              {tp.notPredicted}
+                            </span>
+                          )}
+                          {isTBD && (
+                            <span className="text-xs font-medium text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
+                              Teams TBD
+                            </span>
+                          )}
                           <StatusBadge match={match} tp={tp} />
-                          {!hasResult && locked && <span className="text-xs text-gray-400">🔒</span>}
-                          {invalid && <span className="text-xs text-red-500">⚠</span>}
+                          {!hasResult && locked && !isTBD && <span className="text-xs text-gray-400">🔒</span>}
                         </div>
                       </div>
 
                       {/* Teams + score inputs */}
                       <div className="flex items-center gap-3 px-4 pb-3">
                         <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 truncate">
-                            {getTeamName(match.home_team, lang)}
-                          </span>
-                          <FlagImage countryCode={getTeamFlagCode(match.home_team)} />
+                          {isTBD ? (
+                            <span className="text-sm font-medium text-gray-400 truncate italic">
+                              {match.home_team}
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-sm font-medium text-gray-900 truncate">
+                                {getTeamName(match.home_team, lang)}
+                              </span>
+                              <FlagImage countryCode={getTeamFlagCode(match.home_team)} />
+                            </>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isEditing && !locked && !isViewingOther ? (
+                          {isEditing && !locked && !isTBD && !isViewingOther ? (
                             <>
                               <input
                                 type="number" min={0} max={15}
@@ -548,11 +569,8 @@ export default function PredictPage() {
                                   const raw = e.target.value
                                   const clamped = raw === '' ? '' : String(Math.max(0, parseInt(raw, 10) || 0))
                                   setPredictions((p) => ({ ...p, [match.id]: { ...pred, home: clamped } }))
-                                  if (clamped !== '') setInvalidIds((s) => { const n = new Set(s); n.delete(match.id); return n })
                                 }}
-                                className={`w-12 rounded-lg border px-1 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-green-500/20 ${
-                                  invalid ? 'border-red-400 focus:border-red-400' : 'border-gray-300 focus:border-green-500'
-                                }`}
+                                className="w-12 rounded-lg border border-gray-300 px-1 py-1.5 text-sm text-center font-mono focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
                               />
                               <span className="text-gray-400 font-bold text-sm">–</span>
                               <input
@@ -562,11 +580,8 @@ export default function PredictPage() {
                                   const raw = e.target.value
                                   const clamped = raw === '' ? '' : String(Math.max(0, parseInt(raw, 10) || 0))
                                   setPredictions((p) => ({ ...p, [match.id]: { ...pred, away: clamped } }))
-                                  if (clamped !== '') setInvalidIds((s) => { const n = new Set(s); n.delete(match.id); return n })
                                 }}
-                                className={`w-12 rounded-lg border px-1 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-green-500/20 ${
-                                  invalid ? 'border-red-400 focus:border-red-400' : 'border-gray-300 focus:border-green-500'
-                                }`}
+                                className="w-12 rounded-lg border border-gray-300 px-1 py-1.5 text-sm text-center font-mono focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
                               />
                             </>
                           ) : (
@@ -583,12 +598,27 @@ export default function PredictPage() {
                         </div>
 
                         <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                          <FlagImage countryCode={getTeamFlagCode(match.away_team)} />
-                          <span className="text-sm font-medium text-gray-900 truncate">
-                            {getTeamName(match.away_team, lang)}
-                          </span>
+                          {isTBD ? (
+                            <span className="text-sm font-medium text-gray-400 truncate italic">
+                              {match.away_team}
+                            </span>
+                          ) : (
+                            <>
+                              <FlagImage countryCode={getTeamFlagCode(match.away_team)} />
+                              <span className="text-sm font-medium text-gray-900 truncate">
+                                {getTeamName(match.away_team, lang)}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
+
+                      {/* TBD message */}
+                      {isTBD && !hasResult && (
+                        <div className="px-4 pb-3">
+                          <p className="text-xs text-gray-400 italic text-center">{tp.tbdMessage}</p>
+                        </div>
+                      )}
 
                       {/* Result + prediction + breakdown (only when finished) */}
                       {hasResult && (
@@ -664,11 +694,70 @@ export default function PredictPage() {
         </div>
       )}
 
+      {/* Confirmation dialog — cancel with unsaved changes */}
+      {cancelConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {tp.cancelConfirmMsg.replace('{n}', String(cancelChangedCount))}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setPredictions({ ...originalPredictions })
+                  setCancelConfirmOpen(false)
+                  setIsEditing(false)
+                  setSaveMsg(null)
+                  setError(null)
+                  setConfirmOpen(false)
+                }}
+                className="flex-1 rounded-full bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors"
+              >
+                {tp.yesDiscard}
+              </button>
+              <button
+                onClick={() => setCancelConfirmOpen(false)}
+                className="flex-1 rounded-full border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-400 transition-colors"
+              >
+                {tp.keepEditing}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation dialog — incomplete predictions */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {tp.missingMatches.replace('{n}', String(missingCount))}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="flex-1 rounded-full bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+              >
+                {saving ? tp.saving : tp.saveAnyway}
+              </button>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={saving}
+                className="flex-1 rounded-full border border-gray-300 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-400 transition-colors"
+              >
+                {tp.goBack}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Save button — only in edit mode and own predictions */}
       {isEditing && matches.length > 0 && !isViewingOther && (
         <div className="sticky bottom-4">
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving || closed}
             className="w-full rounded-full bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors shadow-lg"
           >

@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       name,
       description,
       owner_id: user.id,
+      auto_approve: !!body.auto_approve,
       prize_currency: body.prize_currency ?? 'USD',
       has_prize: hasPrize,
       prize_type: prizeType,

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLang } from '@/components/LanguageContext'
+import PoolTabs from '@/components/PoolTabs'
 
 interface Member {
   id: string
@@ -66,13 +67,6 @@ export default function LeaderboardPage() {
     { key: 'points_final', label: 'FIN' },
   ]
 
-  const tabs = [
-    { label: t.tabs.predict,   href: `/pools/${poolId}/predict`     },
-    { label: t.tabs.bonus,     href: `/pools/${poolId}/bonus`       },
-    { label: t.tabs.standings, href: `/pools/${poolId}/leaderboard` },
-    { label: t.tabs.poolInfo,  href: `/pools/${poolId}`             },
-  ]
-
   // Column totals
   const colTotals = roundCols.reduce<Record<string, number>>((acc, c) => {
     acc[c.key] = members.reduce((s, m) => s + ((m as unknown as Record<string, number>)[c.key] || 0), 0)
@@ -100,20 +94,8 @@ export default function LeaderboardPage() {
         <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
           {t.leaderboard.back}
         </Link>
-        <div className="flex gap-1 border-b border-gray-100 mt-4 overflow-x-auto">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                tab.href === `/pools/${poolId}/leaderboard`
-                  ? 'border-green-500 text-green-700'
-                  : 'border-transparent text-gray-500 hover:text-green-700 hover:border-green-400'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
+        <div className="mt-4">
+          <PoolTabs poolId={poolId} activeTab="standings" />
         </div>
       </div>
 

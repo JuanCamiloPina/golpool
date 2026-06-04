@@ -47,7 +47,7 @@ export async function GET(
 
   const { data: rows, error } = await admin
     .from('bonus_predictions')
-    .select('question, answer, points')
+    .select('question, answer, points_earned')
     .eq('pool_id', poolId)
     .eq('user_id', targetUid)
 

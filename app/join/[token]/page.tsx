@@ -14,7 +14,7 @@ export default async function PublicJoinPage({
   // Look up pool by invite_code (archived pools are not joinable)
   const { data: pool } = await supabase
     .from('pools')
-    .select('id, name, description')
+    .select('id, name, description, auto_approve')
     .eq('invite_code', token.toUpperCase())
     .eq('is_archived', false)
     .single()
@@ -110,7 +110,7 @@ export default async function PublicJoinPage({
                 Your previous request was not approved. You can submit a new request below.
               </p>
             </div>
-            <JoinButton poolId={pool.id} userId={user.id} existingMemberId={existing.id} />
+            <JoinButton poolId={pool.id} userId={user.id} autoApprove={pool.auto_approve} existingMemberId={existing.id} />
             <div className="mt-4 text-center">
               <Link
                 href="/dashboard"
@@ -137,11 +137,12 @@ export default async function PublicJoinPage({
               <p className="mt-2 text-sm text-gray-500">{pool.description}</p>
             )}
             <p className="mt-4 text-sm text-gray-600">
-              You&apos;ve been invited to this prediction pool.
-              Your request will need admin approval before you can participate.
+              {pool.auto_approve
+                ? "You've been invited to this prediction pool. You can join instantly!"
+                : "You've been invited to this prediction pool. Your request will need admin approval before you can participate."}
             </p>
           </div>
-          <JoinButton poolId={pool.id} userId={user.id} />
+          <JoinButton poolId={pool.id} userId={user.id} autoApprove={pool.auto_approve} />
           <div className="mt-4 text-center">
             <Link
               href="/dashboard"

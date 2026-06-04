@@ -28,10 +28,9 @@ export default function JoinPoolPage() {
 
     const normalized = code.trim().toUpperCase()
 
-    // Look up pool by invite_code (archived pools are not joinable)
     const { data: pool } = await supabase
       .from('pools')
-      .select('id')
+      .select('id, auto_approve')
       .eq('invite_code', normalized)
       .eq('is_archived', false)
       .single()
@@ -42,7 +41,6 @@ export default function JoinPoolPage() {
       return
     }
 
-    // Check if already a member
     const { data: existing } = await supabase
       .from('pool_members')
       .select('id, status')
@@ -61,35 +59,27 @@ export default function JoinPoolPage() {
         setLoading(false)
         return
       }
-
-      // Rejected — re-apply by updating existing row to pending
-      if (existing.status === 'rejected') {
-        const { error } = await supabase
-          .from('pool_members')
-          .update({ status: 'pending' })
-          .eq('id', existing.id)
-          .eq('user_id', user.id)
-
-        if (error) {
-          setState('invalid')
-          setLoading(false)
-          return
-        }
-
-        setState('success')
-        setLoading(false)
-        return
-      }
     }
 
-    // Insert new pending membership
-    const { error } = await supabase
-      .from('pool_members')
-      .insert({ pool_id: pool.id, user_id: user.id, status: 'pending' })
+    // New join or re-apply after rejection — route through API to handle auto_approve
+    const existingMemberId = existing?.status === 'rejected' ? existing.id : undefined
 
-    if (error) {
+    const res = await fetch(`/api/pools/${pool.id}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ existing_member_id: existingMemberId }),
+    })
+
+    if (!res.ok) {
       setState('invalid')
       setLoading(false)
+      return
+    }
+
+    const data = await res.json()
+
+    if (data.status === 'approved') {
+      router.push(`/pools/${pool.id}`)
       return
     }
 

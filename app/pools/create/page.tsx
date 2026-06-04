@@ -23,6 +23,7 @@ type PrizeType = 'fixed' | 'per_entry' | null
 interface FormState {
   name: string
   description: string
+  autoApprove: boolean
   currency: string
   hasPrize: boolean | null
   prizeType: PrizeType
@@ -113,6 +114,7 @@ export default function CreatePoolPage() {
   const [form, setForm] = useState<FormState>({
     name: '',
     description: '',
+    autoApprove: false,
     currency: 'USD',
     hasPrize: null,
     prizeType: null,
@@ -206,6 +208,7 @@ export default function CreatePoolPage() {
     const body: Record<string, unknown> = {
       name: form.name.trim(),
       description: form.description.trim() || null,
+      auto_approve: form.autoApprove,
       prize_currency: form.currency,
       has_prize: !!form.hasPrize,
     }
@@ -241,6 +244,25 @@ export default function CreatePoolPage() {
   }
 
   const sym = getCurrencySymbol(form.currency)
+
+  // Currency selector — reused in Step 3a and 3b
+  const CurrencySelector = (
+    <div>
+      <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
+        {cp.currencyForPrizesLabel}
+      </label>
+      <select
+        id="currency"
+        value={form.currency}
+        onChange={(e) => set('currency', e.target.value)}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+      >
+        {CURRENCIES.map((c) => (
+          <option key={c.code} value={c.code}>{c.label}</option>
+        ))}
+      </select>
+    </div>
+  )
 
   // ── render ───────────────────────────────────────────────────────────
 
@@ -312,20 +334,36 @@ export default function CreatePoolPage() {
                 />
               </div>
 
+              {/* Join mode */}
               <div>
-                <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
-                  {cp.currencyLabel}
-                </label>
-                <select
-                  id="currency"
-                  value={form.currency}
-                  onChange={(e) => set('currency', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
-                >
-                  {CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>{c.label}</option>
-                  ))}
-                </select>
+                <p className="text-sm font-semibold text-gray-700 mb-3">{cp.joinModeQuestion}</p>
+                <div className="space-y-3">
+                  <SelectionCard
+                    selected={!form.autoApprove}
+                    onClick={() => set('autoApprove', false)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl mt-0.5">🔐</span>
+                      <div>
+                        <p className="font-semibold text-gray-900">{cp.joinModeApproval}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{cp.joinModeApprovalDesc}</p>
+                      </div>
+                    </div>
+                  </SelectionCard>
+
+                  <SelectionCard
+                    selected={form.autoApprove}
+                    onClick={() => set('autoApprove', true)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl mt-0.5">🔓</span>
+                      <div>
+                        <p className="font-semibold text-gray-900">{cp.joinModeOpen}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{cp.joinModeOpenDesc}</p>
+                      </div>
+                    </div>
+                  </SelectionCard>
+                </div>
               </div>
 
               <button
@@ -426,6 +464,8 @@ export default function CreatePoolPage() {
               </p>
               <p className="text-sm text-gray-500">{cp.fixedDesc}</p>
 
+              {CurrencySelector}
+
               {[
                 { key: 'prize1stFixed' as const, label: cp.first, icon: '🥇', required: true },
                 { key: 'prize2ndFixed' as const, label: cp.second, icon: '🥈', required: false },
@@ -475,6 +515,8 @@ export default function CreatePoolPage() {
               <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">
                 {cp.step3bLabel}
               </p>
+
+              {CurrencySelector}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -588,7 +630,9 @@ export default function CreatePoolPage() {
                   <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{cp.step1Label}</p>
                   <p className="font-semibold text-gray-900">{form.name}</p>
                   {form.description && <p className="text-sm text-gray-500">{form.description}</p>}
-                  <p className="text-sm text-gray-600">{cp.currencyLabel}: <span className="font-medium">{form.currency}</span></p>
+                  <p className="text-sm text-gray-600">
+                    {form.autoApprove ? `🔓 ${cp.joinModeOpen}` : `🔐 ${cp.joinModeApproval}`}
+                  </p>
                 </div>
 
                 {/* Prize summary */}
@@ -598,14 +642,14 @@ export default function CreatePoolPage() {
                     <p className="text-sm text-gray-600">🤝 {cp.noPrize}</p>
                   ) : form.prizeType === 'fixed' ? (
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-gray-800">💰 {cp.fixedPrize}</p>
+                      <p className="text-sm font-medium text-gray-800">💰 {cp.fixedPrize} · {form.currency}</p>
                       {form.prize1stFixed && <p className="text-sm text-gray-600">🥇 {sym}{parseFloat(form.prize1stFixed).toLocaleString()}</p>}
                       {form.prize2ndFixed && parseFloat(form.prize2ndFixed) > 0 && <p className="text-sm text-gray-600">🥈 {sym}{parseFloat(form.prize2ndFixed).toLocaleString()}</p>}
                       {form.prize3rdFixed && parseFloat(form.prize3rdFixed) > 0 && <p className="text-sm text-gray-600">🥉 {sym}{parseFloat(form.prize3rdFixed).toLocaleString()}</p>}
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-gray-800">🎯 {cp.perEntry}</p>
+                      <p className="text-sm font-medium text-gray-800">🎯 {cp.perEntry} · {form.currency}</p>
                       <p className="text-sm text-gray-600">{cp.entryFeeLabel}: {sym}{parseFloat(form.entryFee).toLocaleString()}</p>
                       {form.prize1stPct && <p className="text-sm text-gray-600">🥇 {form.prize1stPct}%</p>}
                       {form.prize2ndPct && parseFloat(form.prize2ndPct) > 0 && <p className="text-sm text-gray-600">🥈 {form.prize2ndPct}%</p>}

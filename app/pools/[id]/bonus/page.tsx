@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
+import PoolTabs from '@/components/PoolTabs'
+import { formatDeadlineShort } from '@/lib/date-utils'
 import SearchableSelect from '@/components/SearchableSelect'
 import { WC2026_PLAYERS } from '@/lib/wc2026-players'
 import { getTeamName, getTeamEnglishName, getTeamOptions, getTeamFlagCode, getTeamFlagCodesMap } from '@/lib/wc2026-teams'
@@ -58,6 +60,31 @@ function playerFlagCode(stored: string): string {
 
 interface Member { userId: string; fullName: string }
 
+function useCountdown(deadline: string | null) {
+  const [label, setLabel] = useState('')
+  const [closed, setClosed] = useState(false)
+
+  const tick = useCallback(() => {
+    if (!deadline) return
+    const diff = new Date(deadline).getTime() - Date.now()
+    if (diff <= 0) { setClosed(true); setLabel(''); return }
+    const d = Math.floor(diff / 86400000)
+    const h = Math.floor((diff % 86400000) / 3600000)
+    const m = Math.floor((diff % 3600000) / 60000)
+    const s = Math.floor((diff % 60000) / 1000)
+    setLabel(d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`)
+  }, [deadline])
+
+  useEffect(() => {
+    if (!deadline) return
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [deadline, tick])
+
+  return { label, closed }
+}
+
 export default function BonusPage() {
   const { t, lang } = useLang()
   const router = useRouter()
@@ -66,7 +93,7 @@ export default function BonusPage() {
 
   const [answers, setAnswers]         = useState<Record<string, string>>({})
   const [bonusPoints, setBonusPoints] = useState<Record<string, number>>({})
-  const [closed, setClosed]           = useState(false)
+  const [deadline, setDeadline]       = useState<string | null>(null)
   const [isEditing, setIsEditing]     = useState(false)
   const [invalidFields, setInvalid]   = useState<Set<string>>(new Set())
   const [loading, setLoading]         = useState(true)
@@ -78,6 +105,8 @@ export default function BonusPage() {
   const [members, setMembers]         = useState<Member[]>([])
   const [viewingUserId, setViewingUserId] = useState<string | null>(null)
   const [viewingName, setViewingName] = useState<string | null>(null)
+
+  const { label: bonusCountdown, closed } = useCountdown(deadline)
 
   // Rebuild player option lists when the display language changes
   const playerOptions = useMemo(() =>
@@ -125,11 +154,11 @@ export default function BonusPage() {
 
       const dl = round?.prediction_deadline ?? null
       const isClosed = dl ? new Date(dl) <= new Date() : false
-      setClosed(isClosed)
+      setDeadline(dl)
 
       const { data: existing } = await supabase
         .from('bonus_predictions')
-        .select('question, answer, points')
+        .select('question, answer, points_earned')
         .eq('pool_id', poolId)
         .eq('user_id', user.id)
 
@@ -137,7 +166,7 @@ export default function BonusPage() {
       const pointsMap: Record<string, number> = {}
       for (const row of existing ?? []) {
         answerMap[row.question] = row.answer
-        pointsMap[row.question] = row.points ?? 0
+        pointsMap[row.question] = row.points_earned ?? 0
       }
       setAnswers(answerMap)
       setBonusPoints(pointsMap)
@@ -182,8 +211,18 @@ export default function BonusPage() {
       answer:   answers[q.key] ?? '',
     }))
 
-    await supabase.from('bonus_predictions').delete()
-      .eq('pool_id', poolId).eq('user_id', userId)
+    const { error: deleteError } = await supabase
+      .from('bonus_predictions')
+      .delete()
+      .eq('pool_id', poolId)
+      .eq('user_id', userId)
+
+    if (deleteError) {
+      console.error('[bonus save] delete error:', deleteError)
+      setSaving(false)
+      setError(`Save failed (delete): ${deleteError.message}`)
+      return
+    }
 
     const { error: insertError } = await supabase
       .from('bonus_predictions')
@@ -191,7 +230,8 @@ export default function BonusPage() {
 
     setSaving(false)
     if (insertError) {
-      setError(insertError.message)
+      console.error('[bonus save] insert error:', insertError)
+      setError(`Save failed (insert): ${insertError.message}`)
     } else {
       setSaved(true)
       setIsEditing(false)
@@ -207,7 +247,7 @@ export default function BonusPage() {
     const pointsMap: Record<string, number> = {}
     for (const row of data.bonus ?? []) {
       answerMap[row.question] = row.answer
-      pointsMap[row.question] = row.points ?? 0
+      pointsMap[row.question] = row.points_earned ?? 0
     }
     setAnswers(answerMap)
     setBonusPoints(pointsMap)
@@ -220,7 +260,7 @@ export default function BonusPage() {
     const supabase = createClient()
     supabase
       .from('bonus_predictions')
-      .select('question, answer, points')
+      .select('question, answer, points_earned')
       .eq('pool_id', poolId)
       .eq('user_id', userId)
       .then(({ data }) => {
@@ -228,7 +268,7 @@ export default function BonusPage() {
         const pointsMap: Record<string, number> = {}
         for (const row of data ?? []) {
           answerMap[row.question] = row.answer
-          pointsMap[row.question] = row.points ?? 0
+          pointsMap[row.question] = row.points_earned ?? 0
         }
         setAnswers(answerMap)
         setBonusPoints(pointsMap)
@@ -258,13 +298,6 @@ export default function BonusPage() {
   const labels = t.bonus
   const totalBonusPoints = Object.values(bonusPoints).reduce((s, p) => s + p, 0)
 
-  const tabs = [
-    { label: t.tabs.predict,   href: `/pools/${poolId}/predict`     },
-    { label: t.tabs.bonus,     href: `/pools/${poolId}/bonus`       },
-    { label: t.tabs.standings, href: `/pools/${poolId}/leaderboard` },
-    { label: t.tabs.poolInfo,  href: `/pools/${poolId}`             },
-  ]
-
   if (loading) {
     return (
       <div className="max-w-xl mx-auto px-4 py-10 w-full">
@@ -285,20 +318,8 @@ export default function BonusPage() {
         <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
           {labels.back}
         </Link>
-        <div className="flex gap-1 border-b border-gray-100 mt-4 overflow-x-auto">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                tab.href === `/pools/${poolId}/bonus`
-                  ? 'border-green-500 text-green-700'
-                  : 'border-transparent text-gray-500 hover:text-green-700 hover:border-green-400'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
+        <div className="mt-4">
+          <PoolTabs poolId={poolId} activeTab="bonus" />
         </div>
       </div>
 
@@ -306,7 +327,18 @@ export default function BonusPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">{labels.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">{labels.subtitle}</p>
+          {deadline && !closed ? (
+            <div className="mt-0.5 text-sm text-gray-500">
+              {labels.closesIn}{' '}
+              <span className="font-semibold text-green-700 tabular-nums">{bonusCountdown}</span>
+              {' '}
+              <span className="text-xs text-gray-400">
+                {labels.deadlineAt} {formatDeadlineShort(deadline, lang)}
+              </span>
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-gray-500">{labels.subtitle}</p>
+          )}
         </div>
         {!closed && !isEditing && !isViewingOther && (
           <button
@@ -435,6 +467,7 @@ export default function BonusPage() {
                     if (toStore.trim()) setInvalid((s) => { const n = new Set(s); n.delete(q.key); return n })
                   }}
                   placeholder={labels.placeholder}
+                  hint={labels.searchHint}
                   disabled={closed}
                 />
               ) : (

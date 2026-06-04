@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/components/LanguageContext'
 import { createClient } from '@/lib/supabase'
+import PoolTabs from '@/components/PoolTabs'
 
 interface Member {
   userId: string
@@ -17,6 +18,7 @@ interface Props {
   inviteCode: string
   ownerName: string
   isAdmin?: boolean
+  isInfoTab?: boolean
   hasPrize: boolean
   prizeType: string | null
   entryFee: number | null
@@ -57,7 +59,6 @@ function StatusCell({ status, title }: { status: CompletionStatus; title: string
   )
 }
 
-// ── Example data (numbers are fixed; labels come from i18n) ──────────────
 interface ExRow { labelKey: string; ok: boolean; groupPts: number; koPts: number }
 interface ExData { titleKey: string; rows: ExRow[]; groupTotal: number; koTotal: number }
 
@@ -178,6 +179,7 @@ function fmt(amount: number, currency: string) {
 export default function PoolInfoApproved({
   poolId, poolName, poolDescription, inviteCode, ownerName,
   isAdmin = false,
+  isInfoTab = false,
   hasPrize, prizeType, entryFee,
   prize1stFixed, prize2ndFixed, prize3rdFixed,
   prize1stPct, prize2ndPct, prize3rdPct,
@@ -185,12 +187,13 @@ export default function PoolInfoApproved({
 }: Props) {
   const { t } = useLang()
   const pi = t.poolInfo
+  const pw = t.poolWelcome
 
-  const [members, setMembers]           = useState<Member[]>([])
+  const [members, setMembers]               = useState<Member[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
-  const [completion, setCompletion]     = useState<CompletionData | null>(null)
+  const [completion, setCompletion]         = useState<CompletionData | null>(null)
   const [completionLoading, setCompletionLoading] = useState(true)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId]   = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/pools/${poolId}/members/list`)
@@ -213,13 +216,6 @@ export default function PoolInfoApproved({
     loadCompletion()
   }, [poolId])
 
-  const tabs = [
-    { label: t.tabs.predict,   href: `/pools/${poolId}/predict`     },
-    { label: t.tabs.bonus,     href: `/pools/${poolId}/bonus`       },
-    { label: t.tabs.standings, href: `/pools/${poolId}/leaderboard` },
-    { label: t.tabs.poolInfo,  href: `/pools/${poolId}`             },
-  ]
-
   const bonusRows = [
     { label: pi.bonusWinner,      pts: 40 },
     { label: pi.bonusRunnerUp,    pts: 20 },
@@ -229,7 +225,6 @@ export default function PoolInfoApproved({
     { label: pi.bonusGoldenGlove, pts: 10 },
   ]
   const bonusTotal = bonusRows.reduce((s, r) => s + r.pts, 0)
-
   const tiebreakers = [pi.tb1, pi.tb2, pi.tb3, pi.tb4, pi.tb5]
 
   return (
@@ -246,378 +241,423 @@ export default function PoolInfoApproved({
         </span>
       </div>
 
-      {/* Nav tabs */}
-      <div className="flex gap-1 border-b border-gray-100 mb-6 overflow-x-auto">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-              tab.href === `/pools/${poolId}`
-                ? 'border-green-500 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-green-700 hover:border-green-400'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-        {isAdmin && (
-          <Link
-            href={`/pools/${poolId}/admin`}
-            className="shrink-0 ml-auto px-4 py-2 text-sm font-medium border-b-2 border-transparent text-green-700 hover:text-green-800 hover:border-green-500 transition-colors"
-          >
-            {t.tabs.manage}
-          </Link>
-        )}
+      {/* Nav tabs — always visible */}
+      <div className="mb-6">
+        <PoolTabs poolId={poolId} activeTab={isInfoTab ? 'poolinfo' : 'home'} />
       </div>
 
-      {poolDescription && <p className="mb-5 text-sm text-gray-500">{poolDescription}</p>}
+      {!isInfoTab ? (
+        /* ══════════════════════════════ WELCOME VIEW ══════════════════════════════ */
+        <div className="space-y-5">
 
-      <div className="space-y-5">
-
-        {/* Quick actions */}
-        <div className="flex gap-3 flex-wrap">
-          <Link href={`/pools/${poolId}/predict`}
-            className="inline-flex items-center rounded-full bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors">
-            {pi.predict}
-          </Link>
-          <Link href={`/pools/${poolId}/bonus`}
-            className="inline-flex items-center rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:border-green-400 hover:text-green-700 transition-colors">
-            {pi.bonus}
-          </Link>
-          <Link href={`/pools/${poolId}/leaderboard`}
-            className="inline-flex items-center rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:border-green-400 hover:text-green-700 transition-colors">
-            {pi.standings}
-          </Link>
-        </div>
-
-        {/* Pool details */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">{pi.infoTitle}</h2>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>
-              <span className="text-gray-400">{pi.organizer} </span>
-              <span className="font-medium text-gray-800">{ownerName}</span>
-            </p>
-            <p>
-              <span className="text-gray-400">{pi.inviteCode} </span>
-              <span className="font-mono font-bold text-green-700">{inviteCode}</span>
-            </p>
+          {/* Section 1 — Welcome header */}
+          <div className="text-center py-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+              {pw.title.replace('{name}', poolName)}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">{pw.subtitle}</p>
+            {poolDescription && (
+              <p className="mt-2 text-sm text-gray-400 italic">{poolDescription}</p>
+            )}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              {pi.members}{!membersLoading && ` (${members.length})`}
-            </h3>
-            {membersLoading ? (
-              <div className="space-y-1.5 animate-pulse">
-                {[1, 2, 3].map((i) => <div key={i} className="h-4 bg-gray-100 rounded w-32" />)}
+
+          {/* Section 2 — How This Pool Works */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm space-y-3 border border-green-100 border-l-[5px] border-l-green-500">
+            <h3 className="font-bold text-gray-900 text-base">{pw.howWorksTitle}</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{pw.p1}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{pw.p2}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {pw.p3a}{' '}
+              <strong className="text-green-700 text-[15px] font-bold">{pw.p3bold}</strong>
+              {' '}{pw.p3b}
+            </p>
+            <p className="text-sm text-gray-600 leading-relaxed">{pw.p4}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{pw.p5}</p>
+          </div>
+
+          {/* Section 3 — 4 action buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href={`/pools/${poolId}/predict`}
+              className="rounded-2xl bg-green-600 p-4 sm:p-5 flex flex-col items-center text-center gap-1.5 text-white hover:bg-green-700 active:scale-[0.97] transition-all shadow-sm"
+            >
+              <span className="text-3xl">⚽</span>
+              <span className="font-bold text-sm sm:text-base leading-tight">{pw.btn1Title}</span>
+              <span className="text-xs text-green-100 leading-tight">{pw.btn1Sub}</span>
+            </Link>
+
+            <Link
+              href={`/pools/${poolId}/bonus`}
+              className="rounded-2xl bg-amber-500 p-4 sm:p-5 flex flex-col items-center text-center gap-1.5 text-white hover:bg-amber-600 active:scale-[0.97] transition-all shadow-sm"
+            >
+              <span className="text-3xl">⭐</span>
+              <span className="font-bold text-sm sm:text-base leading-tight">{pw.btn2Title}</span>
+              <span className="text-xs text-amber-100 leading-tight">{pw.btn2Sub}</span>
+            </Link>
+
+            <Link
+              href={`/pools/${poolId}?tab=info`}
+              className="rounded-2xl bg-blue-600 p-4 sm:p-5 flex flex-col items-center text-center gap-1.5 text-white hover:bg-blue-700 active:scale-[0.97] transition-all shadow-sm"
+            >
+              <span className="text-3xl">📋</span>
+              <span className="font-bold text-sm sm:text-base leading-tight">{pw.btn3Title}</span>
+              <span className="text-xs text-blue-100 leading-tight">{pw.btn3Sub}</span>
+            </Link>
+
+            <Link
+              href={`/pools/${poolId}/leaderboard`}
+              className="rounded-2xl bg-purple-600 p-4 sm:p-5 flex flex-col items-center text-center gap-1.5 text-white hover:bg-purple-700 active:scale-[0.97] transition-all shadow-sm"
+            >
+              <span className="text-3xl">🏆</span>
+              <span className="font-bold text-sm sm:text-base leading-tight">{pw.btn4Title}</span>
+              <span className="text-xs text-purple-100 leading-tight">{pw.btn4Sub}</span>
+            </Link>
+          </div>
+
+          {/* Section 4 — Compact pool summary */}
+          <div className="rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              <span>
+                <span className="text-gray-400">{pi.organizer} </span>
+                <span className="font-medium text-gray-800">{ownerName}</span>
+              </span>
+              {!membersLoading && (
+                <span>
+                  <span className="text-gray-400">{pi.members} </span>
+                  <span className="font-medium text-gray-800">{members.length}</span>
+                </span>
+              )}
+              <span>
+                <span className="text-gray-400">{pi.inviteCode} </span>
+                <span className="font-mono font-bold text-green-700">{inviteCode}</span>
+              </span>
+            </div>
+          </div>
+
+        </div>
+      ) : (
+        /* ══════════════════════════════ INFO VIEW ══════════════════════════════ */
+        <div className="space-y-5">
+
+          {/* Pool details — full */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">{pi.infoTitle}</h2>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>
+                <span className="text-gray-400">{pi.organizer} </span>
+                <span className="font-medium text-gray-800">{ownerName}</span>
+              </p>
+              <p>
+                <span className="text-gray-400">{pi.inviteCode} </span>
+                <span className="font-mono font-bold text-green-700">{inviteCode}</span>
+              </p>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                {pi.members}{!membersLoading && ` (${members.length})`}
+              </h3>
+              {membersLoading ? (
+                <div className="space-y-1.5 animate-pulse">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-4 bg-gray-100 rounded w-32" />)}
+                </div>
+              ) : members.length === 0 ? (
+                <p className="text-sm text-gray-400">{pi.noMembers}</p>
+              ) : (
+                <ul className="space-y-1">
+                  {members.map((m) => (
+                    <li key={m.userId} className="flex items-center gap-2 text-sm text-gray-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                      {m.fullName}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Prediction Status */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-gray-900 mb-0.5">{pi.completionTitle}</h2>
+            <p className="text-xs text-gray-400 mb-4">{pi.completionSubtitle}</p>
+
+            {completionLoading ? (
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3].map((i) => <div key={i} className="h-7 bg-gray-100 rounded" />)}
               </div>
-            ) : members.length === 0 ? (
+            ) : !completion || completion.members.length === 0 ? (
               <p className="text-sm text-gray-400">{pi.noMembers}</p>
             ) : (
-              <ul className="space-y-1">
-                {members.map((m) => (
-                  <li key={m.userId} className="flex items-center gap-2 text-sm text-gray-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                    {m.fullName}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {/* ─────────────────────────────────────────── COMPLETION ── */}
-
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900 mb-0.5">{pi.completionTitle}</h2>
-          <p className="text-xs text-gray-400 mb-4">{pi.completionSubtitle}</p>
-
-          {completionLoading ? (
-            <div className="space-y-2 animate-pulse">
-              {[1, 2, 3].map((i) => <div key={i} className="h-7 bg-gray-100 rounded" />)}
-            </div>
-          ) : !completion || completion.members.length === 0 ? (
-            <p className="text-sm text-gray-400">{pi.noMembers}</p>
-          ) : (
-            <div className="overflow-x-auto -mx-5">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="py-2 pl-5 pr-3 text-left font-medium text-gray-500 whitespace-nowrap">
-                      {pi.members}
-                    </th>
-                    {completion.rounds.map((r) => (
-                      <th key={r.key} className="py-2 px-2 text-center font-medium text-gray-500 whitespace-nowrap min-w-[44px]">
-                        {r.label}
+              <div className="overflow-x-auto -mx-5">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="py-2 pl-5 pr-3 text-left font-medium text-gray-500 whitespace-nowrap">
+                        {pi.members}
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {completion.members.map((m) => {
-                    const isMe = m.userId === currentUserId
-                    return (
-                      <tr key={m.userId} className={isMe ? 'bg-green-50' : 'hover:bg-gray-50 transition-colors'}>
-                        <td className={`py-2 pl-5 pr-3 font-medium whitespace-nowrap text-xs ${isMe ? 'text-green-800' : 'text-gray-700'}`}>
-                          {m.fullName}
-                          {isMe && <span className="ml-1 text-green-500">✦</span>}
-                        </td>
-                        {completion.rounds.map((r) => {
-                          const s = (m.rounds[r.key] ?? 'pending') as CompletionStatus
-                          const titleMap: Record<CompletionStatus, string> = {
-                            complete: pi.statusComplete,
-                            missing:  pi.statusMissing,
-                            open:     pi.statusOpen,
-                            pending:  pi.statusPending,
-                          }
-                          return (
-                            <td key={r.key} className="py-2 px-2 text-center">
-                              <StatusCell status={s} title={titleMap[s]} />
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-
-              {/* Legend */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 pb-1 text-xs text-gray-400">
-                {([
-                  ['complete', pi.statusComplete],
-                  ['missing',  pi.statusMissing],
-                  ['open',     pi.statusOpen],
-                  ['pending',  pi.statusPending],
-                ] as [CompletionStatus, string][]).map(([s, label]) => (
-                  <span key={s} className="flex items-center gap-1">
-                    {STATUS_ICON[s]} {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ─────────────────────────────────────────────── PRIZES ── */}
-
-        {hasPrize && prizeType === 'fixed' && (
-          <SectionCard icon="🏆" title={pi.prizeSectionTitle}>
-            <div className="space-y-3">
-              {[
-                { icon: '🥇', label: pi.first, amount: prize1stFixed },
-                { icon: '🥈', label: pi.second, amount: prize2ndFixed },
-                { icon: '🥉', label: pi.third, amount: prize3rdFixed },
-              ]
-                .filter((r) => r.amount != null && r.amount > 0)
-                .map((r) => (
-                  <div key={r.label} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-sm text-gray-700">
-                      <span className="text-xl">{r.icon}</span>
-                      {r.label}
+                      {completion.rounds.map((r) => (
+                        <th key={r.key} className="py-2 px-2 text-center font-medium text-gray-500 whitespace-nowrap min-w-[44px]">
+                          {r.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {completion.members.map((m) => {
+                      const isMe = m.userId === currentUserId
+                      return (
+                        <tr key={m.userId} className={isMe ? 'bg-green-50' : 'hover:bg-gray-50 transition-colors'}>
+                          <td className={`py-2 pl-5 pr-3 font-medium whitespace-nowrap text-xs ${isMe ? 'text-green-800' : 'text-gray-700'}`}>
+                            {m.fullName}
+                            {isMe && <span className="ml-1 text-green-500">✦</span>}
+                          </td>
+                          {completion.rounds.map((r) => {
+                            const s = (m.rounds[r.key] ?? 'pending') as CompletionStatus
+                            const titleMap: Record<CompletionStatus, string> = {
+                              complete: pi.statusComplete,
+                              missing:  pi.statusMissing,
+                              open:     pi.statusOpen,
+                              pending:  pi.statusPending,
+                            }
+                            return (
+                              <td key={r.key} className="py-2 px-2 text-center">
+                                <StatusCell status={s} title={titleMap[s]} />
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 pt-3 pb-1 text-xs text-gray-400">
+                  {([
+                    ['complete', pi.statusComplete],
+                    ['missing',  pi.statusMissing],
+                    ['open',     pi.statusOpen],
+                    ['pending',  pi.statusPending],
+                  ] as [CompletionStatus, string][]).map(([s, label]) => (
+                    <span key={s} className="flex items-center gap-1">
+                      {STATUS_ICON[s as CompletionStatus]} {label}
                     </span>
-                    <span className="text-base font-bold text-green-700">
-                      {fmt(r.amount!, prizeCurrency)}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </SectionCard>
-        )}
-
-        {hasPrize && prizeType === 'per_entry' && (
-          <SectionCard icon="🏆" title={pi.prizeSectionTitle}>
-            {prize1stPct === 100 && (
-              <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-center text-sm font-bold text-amber-800">
-                🏆 {pi.winnerTakesAll}
+                  ))}
+                </div>
               </div>
             )}
-            <PerEntryPrizes
-              poolId={poolId}
-              entryFee={entryFee}
-              prize1stPct={prize1stPct}
-              prize2ndPct={prize2ndPct}
-              prize3rdPct={prize3rdPct}
-              prizeCurrency={prizeCurrency}
-              labels={{ first: pi.first, second: pi.second, third: pi.third, pot: pi.pot, perPerson: pi.perPerson }}
-            />
-          </SectionCard>
-        )}
-
-        {/* ─────────────────────────────────────────────── RULES ── */}
-
-        {/* Section 1 — How it works */}
-        <SectionCard icon="📋" title={pi.sec1Title}>
-          <ul className="space-y-2 text-sm text-gray-600">
-            {[pi.sec1b1, pi.sec1b2, pi.sec1b3].map((b, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-green-500 mt-0.5 shrink-0">•</span>
-                {b}
-              </li>
-            ))}
-            <li className="flex gap-2 mt-1 rounded-xl bg-green-50 border border-green-100 px-3 py-2 text-green-800 text-xs">
-              <span className="shrink-0">💡</span>
-              {pi.sec1b4}
-            </li>
-          </ul>
-        </SectionCard>
-
-        {/* Section 2 — Points system */}
-        <SectionCard icon="📊" title={pi.sec2Title}>
-          <div className="space-y-4">
-            {/* Group stage */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{pi.groupLabel}</p>
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-gray-50">
-                  {[
-                    { label: pi.correctResult, pts: 5  },
-                    { label: pi.correctHome,   pts: 2  },
-                    { label: pi.correctAway,   pts: 2  },
-                    { label: pi.correctDiff,   pts: 1  },
-                    { label: pi.maxPerMatch,   pts: 10, bold: true },
-                  ].map(({ label, pts, bold }) => (
-                    <tr key={label} className={bold ? 'border-t border-gray-200' : ''}>
-                      <td className={`py-1.5 text-gray-600 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</td>
-                      <td className={`py-1.5 text-right tabular-nums ${bold ? 'font-bold text-green-700' : 'font-semibold text-gray-700'}`}>{pts} {pi.pts}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Knockout */}
-            <div>
-              <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">{pi.knockoutLabel}</p>
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-gray-50">
-                  {[
-                    { label: pi.correctResult, pts: 10 },
-                    { label: pi.correctHome,   pts: 4  },
-                    { label: pi.correctAway,   pts: 4  },
-                    { label: pi.correctDiff,   pts: 2  },
-                    { label: pi.maxPerMatch,   pts: 20, bold: true },
-                  ].map(({ label, pts, bold }) => (
-                    <tr key={label} className={bold ? 'border-t border-gray-200' : ''}>
-                      <td className={`py-1.5 text-gray-600 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</td>
-                      <td className={`py-1.5 text-right tabular-nums ${bold ? 'font-bold text-green-700' : 'font-semibold text-green-700'}`}>{pts} {pi.pts}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
-        </SectionCard>
 
-        {/* Section 3 — Examples */}
-        <SectionCard icon="💡" title={pi.sec3Title}>
-          <div className="space-y-4">
-            {EXAMPLES.map((ex) => {
-              const piAny = pi as Record<string, string>
-              return (
-                <div key={ex.titleKey} className="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
-                  <div className="bg-gray-100 px-3 py-2">
-                    <p className="text-xs font-semibold text-gray-700">{piAny[ex.titleKey]}</p>
-                  </div>
-                  <div className="px-3 py-2">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="py-1 text-left text-gray-400 font-medium" />
-                          <th className="py-1 text-right text-gray-500 font-medium pr-3">{pi.groupCol}</th>
-                          <th className="py-1 text-right text-green-600 font-medium">{pi.knockoutCol}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {ex.rows.map((row) => (
-                          <tr key={row.labelKey}>
-                            <td className="py-1.5 text-gray-600 pr-2">
-                              <span className={`mr-1 font-bold ${row.ok ? 'text-green-600' : 'text-red-400'}`}>
-                                {row.ok ? '✓' : '✗'}
-                              </span>
-                              {piAny[row.labelKey]}
+          {/* Prizes */}
+          {hasPrize && prizeType === 'fixed' && (
+            <SectionCard icon="🏆" title={pi.prizeSectionTitle}>
+              <div className="space-y-3">
+                {[
+                  { icon: '🥇', label: pi.first, amount: prize1stFixed },
+                  { icon: '🥈', label: pi.second, amount: prize2ndFixed },
+                  { icon: '🥉', label: pi.third, amount: prize3rdFixed },
+                ]
+                  .filter((r) => r.amount != null && r.amount > 0)
+                  .map((r) => (
+                    <div key={r.label} className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-sm text-gray-700">
+                        <span className="text-xl">{r.icon}</span>
+                        {r.label}
+                      </span>
+                      <span className="text-base font-bold text-green-700">
+                        {fmt(r.amount!, prizeCurrency)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </SectionCard>
+          )}
+
+          {hasPrize && prizeType === 'per_entry' && (
+            <SectionCard icon="🏆" title={pi.prizeSectionTitle}>
+              {prize1stPct === 100 && (
+                <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-center text-sm font-bold text-amber-800">
+                  🏆 {pi.winnerTakesAll}
+                </div>
+              )}
+              <PerEntryPrizes
+                poolId={poolId}
+                entryFee={entryFee}
+                prize1stPct={prize1stPct}
+                prize2ndPct={prize2ndPct}
+                prize3rdPct={prize3rdPct}
+                prizeCurrency={prizeCurrency}
+                labels={{ first: pi.first, second: pi.second, third: pi.third, pot: pi.pot, perPerson: pi.perPerson }}
+              />
+            </SectionCard>
+          )}
+
+          {/* Section 1 — How it works */}
+          <SectionCard icon="📋" title={pi.sec1Title}>
+            <ul className="space-y-2 text-sm text-gray-600">
+              {[pi.sec1b1, pi.sec1b2, pi.sec1b3].map((b, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-green-500 mt-0.5 shrink-0">•</span>
+                  {b}
+                </li>
+              ))}
+              <li className="flex gap-2 mt-1 rounded-xl bg-green-50 border border-green-100 px-3 py-2 text-green-800 text-xs">
+                <span className="shrink-0">💡</span>
+                {pi.sec1b4}
+              </li>
+            </ul>
+          </SectionCard>
+
+          {/* Section 2 — Points system */}
+          <SectionCard icon="📊" title={pi.sec2Title}>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{pi.groupLabel}</p>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-gray-50">
+                    {[
+                      { label: pi.correctResult, pts: 5  },
+                      { label: pi.correctHome,   pts: 2  },
+                      { label: pi.correctAway,   pts: 2  },
+                      { label: pi.correctDiff,   pts: 1  },
+                      { label: pi.maxPerMatch,   pts: 10, bold: true },
+                    ].map(({ label, pts, bold }) => (
+                      <tr key={label} className={bold ? 'border-t border-gray-200' : ''}>
+                        <td className={`py-1.5 text-gray-600 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</td>
+                        <td className={`py-1.5 text-right tabular-nums ${bold ? 'font-bold text-green-700' : 'font-semibold text-gray-700'}`}>{pts} {pi.pts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">{pi.knockoutLabel}</p>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-gray-50">
+                    {[
+                      { label: pi.correctResult, pts: 10 },
+                      { label: pi.correctHome,   pts: 4  },
+                      { label: pi.correctAway,   pts: 4  },
+                      { label: pi.correctDiff,   pts: 2  },
+                      { label: pi.maxPerMatch,   pts: 20, bold: true },
+                    ].map(({ label, pts, bold }) => (
+                      <tr key={label} className={bold ? 'border-t border-gray-200' : ''}>
+                        <td className={`py-1.5 text-gray-600 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</td>
+                        <td className={`py-1.5 text-right tabular-nums ${bold ? 'font-bold text-green-700' : 'font-semibold text-green-700'}`}>{pts} {pi.pts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Section 3 — Examples */}
+          <SectionCard icon="💡" title={pi.sec3Title}>
+            <div className="space-y-4">
+              {EXAMPLES.map((ex) => {
+                const piAny = pi as Record<string, string>
+                return (
+                  <div key={ex.titleKey} className="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                    <div className="bg-gray-100 px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-700">{piAny[ex.titleKey]}</p>
+                    </div>
+                    <div className="px-3 py-2">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="py-1 text-left text-gray-400 font-medium" />
+                            <th className="py-1 text-right text-gray-500 font-medium pr-3">{pi.groupCol}</th>
+                            <th className="py-1 text-right text-green-600 font-medium">{pi.knockoutCol}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {ex.rows.map((row) => (
+                            <tr key={row.labelKey}>
+                              <td className="py-1.5 text-gray-600 pr-2">
+                                <span className={`mr-1 font-bold ${row.ok ? 'text-green-600' : 'text-red-400'}`}>
+                                  {row.ok ? '✓' : '✗'}
+                                </span>
+                                {piAny[row.labelKey]}
+                              </td>
+                              <td className={`py-1.5 text-right tabular-nums pr-3 font-semibold ${row.ok ? 'text-gray-700' : 'text-gray-300'}`}>
+                                {row.ok ? `+${row.groupPts}` : '0'}
+                              </td>
+                              <td className={`py-1.5 text-right tabular-nums font-semibold ${row.ok ? 'text-green-700' : 'text-gray-300'}`}>
+                                {row.ok ? `+${row.koPts}` : '0'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300">
+                            <td className="py-1.5 text-xs font-bold text-gray-700" />
+                            <td className="py-1.5 text-right tabular-nums text-xs font-bold text-gray-800 pr-3">
+                              {ex.groupTotal} {pi.pts}
+                              <div className="text-gray-400 font-normal">{pi.exGroupTotal}</div>
                             </td>
-                            <td className={`py-1.5 text-right tabular-nums pr-3 font-semibold ${row.ok ? 'text-gray-700' : 'text-gray-300'}`}>
-                              {row.ok ? `+${row.groupPts}` : '0'}
-                            </td>
-                            <td className={`py-1.5 text-right tabular-nums font-semibold ${row.ok ? 'text-green-700' : 'text-gray-300'}`}>
-                              {row.ok ? `+${row.koPts}` : '0'}
+                            <td className="py-1.5 text-right tabular-nums text-xs font-bold text-green-700">
+                              {ex.koTotal} {pi.pts}
+                              <div className="text-green-400 font-normal">{pi.exKnockoutTotal}</div>
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-300">
-                          <td className="py-1.5 text-xs font-bold text-gray-700">{/* spacer */}</td>
-                          <td className="py-1.5 text-right tabular-nums text-xs font-bold text-gray-800 pr-3">
-                            {ex.groupTotal} {pi.pts}
-                            <div className="text-gray-400 font-normal">{pi.exGroupTotal}</div>
-                          </td>
-                          <td className="py-1.5 text-right tabular-nums text-xs font-bold text-green-700">
-                            {ex.koTotal} {pi.pts}
-                            <div className="text-green-400 font-normal">{pi.exKnockoutTotal}</div>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </SectionCard>
+                )
+              })}
+            </div>
+          </SectionCard>
 
-        {/* Section 4 — Bonus */}
-        <SectionCard icon="⭐" title={pi.sec4Title}>
-          <table className="w-full text-sm mb-3">
-            <tbody className="divide-y divide-gray-50">
-              {bonusRows.map(({ label, pts }) => (
-                <tr key={label}>
-                  <td className="py-1.5 text-gray-600">{label}</td>
-                  <td className="py-1.5 text-right font-semibold text-green-700 tabular-nums">{pts} {pi.pts}</td>
+          {/* Section 4 — Bonus */}
+          <SectionCard icon="⭐" title={pi.sec4Title}>
+            <table className="w-full text-sm mb-3">
+              <tbody className="divide-y divide-gray-50">
+                {bonusRows.map(({ label, pts }) => (
+                  <tr key={label}>
+                    <td className="py-1.5 text-gray-600">{label}</td>
+                    <td className="py-1.5 text-right font-semibold text-green-700 tabular-nums">{pts} {pi.pts}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-gray-200">
+                  <td className="py-2 font-bold text-gray-700">{pi.bonusTotalPossible}</td>
+                  <td className="py-2 text-right font-bold text-green-700 tabular-nums">{bonusTotal} {pi.pts}</td>
                 </tr>
+              </tbody>
+            </table>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              {pi.bonusDeadline}
+            </div>
+          </SectionCard>
+
+          {/* Section 5 — Deadlines */}
+          <SectionCard icon="⏰" title={pi.sec5Title}>
+            <ul className="space-y-2 text-sm text-gray-600">
+              {[pi.sec5b1, pi.sec5b2, pi.sec5b3].map((b, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-green-500 mt-0.5 shrink-0">•</span>
+                  <span dangerouslySetInnerHTML={{ __html: b.replace('LOCKED', '<strong>LOCKED</strong>').replace('BLOQUEADAS', '<strong>BLOQUEADAS</strong>') }} />
+                </li>
               ))}
-              <tr className="border-t-2 border-gray-200">
-                <td className="py-2 font-bold text-gray-700">{pi.bonusTotalPossible}</td>
-                <td className="py-2 text-right font-bold text-green-700 tabular-nums">{bonusTotal} {pi.pts}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-            {pi.bonusDeadline}
-          </div>
-        </SectionCard>
+            </ul>
+          </SectionCard>
 
-        {/* Section 5 — Deadlines */}
-        <SectionCard icon="⏰" title={pi.sec5Title}>
-          <ul className="space-y-2 text-sm text-gray-600">
-            {[pi.sec5b1, pi.sec5b2, pi.sec5b3].map((b, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-green-500 mt-0.5 shrink-0">•</span>
-                <span dangerouslySetInnerHTML={{ __html: b.replace('LOCKED', '<strong>LOCKED</strong>').replace('BLOQUEADAS', '<strong>BLOQUEADAS</strong>') }} />
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
+          {/* Section 6 — Tiebreakers */}
+          <SectionCard icon="⚖️" title={pi.sec6Title}>
+            <p className="text-sm text-gray-500 mb-3">{pi.sec6intro}</p>
+            <ol className="space-y-2">
+              {tiebreakers.map((tb, i) => (
+                <li key={i} className="flex gap-2 text-sm text-gray-700">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  {tb.replace(/^\d+\.\s*/, '')}
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-xs text-gray-400 italic">{pi.sec6end}</p>
+          </SectionCard>
 
-        {/* Section 6 — Tiebreakers */}
-        <SectionCard icon="⚖️" title={pi.sec6Title}>
-          <p className="text-sm text-gray-500 mb-3">{pi.sec6intro}</p>
-          <ol className="space-y-2">
-            {tiebreakers.map((tb, i) => (
-              <li key={i} className="flex gap-2 text-sm text-gray-700">
-                <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">
-                  {i + 1}
-                </span>
-                {tb.replace(/^\d+\.\s*/, '')}
-              </li>
-            ))}
-          </ol>
-          <p className="mt-3 text-xs text-gray-400 italic">{pi.sec6end}</p>
-        </SectionCard>
-
-      </div>
+        </div>
+      )}
     </div>
   )
 }

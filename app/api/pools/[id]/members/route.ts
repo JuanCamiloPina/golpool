@@ -15,11 +15,11 @@ export async function PATCH(
 
   const { id: poolId } = await ctx.params
   const body = await request.json()
-  const { memberId, action } = body as { memberId: string; action: 'approve' | 'reject' }
+  const { memberId, action } = body as { memberId: string; action: 'approve' | 'reject' | 'restore' }
 
   console.log('[PATCH members] poolId:', poolId, 'memberId:', memberId, 'action:', action, 'userId:', user.id)
 
-  if (!memberId || !['approve', 'reject'].includes(action)) {
+  if (!memberId || !['approve', 'reject', 'restore'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
@@ -36,7 +36,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const status = action === 'approve' ? 'approved' : 'rejected'
+  const status = action === 'approve' ? 'approved' : action === 'restore' ? 'pending' : 'rejected'
 
   const { data: updated, error: updateError } = await supabase
     .from('pool_members')
@@ -84,8 +84,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Delete all the member's data for this pool, then the membership row.
-  // Admin client bypasses RLS for the prediction tables.
+  // Delete the member's predictions, then mark membership as 'removed'
+  // (keep the row so the join API can block auto-rejoin in open pools).
+  // Admin client bypasses RLS for prediction tables and the status update.
   const admin = createAdminClient()
 
   await Promise.all([
@@ -97,7 +98,7 @@ export async function DELETE(
 
   const { error } = await admin
     .from('pool_members')
-    .delete()
+    .update({ status: 'removed' })
     .eq('id', memberId)
     .eq('pool_id', poolId)
 
