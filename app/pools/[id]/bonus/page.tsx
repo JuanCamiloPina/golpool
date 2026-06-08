@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -105,8 +105,16 @@ export default function BonusPage() {
   const [members, setMembers]         = useState<Member[]>([])
   const [viewingUserId, setViewingUserId] = useState<string | null>(null)
   const [viewingName, setViewingName] = useState<string | null>(null)
+  const [playerSearch, setPlayerSearch]   = useState('')
+  const [playerFocused, setPlayerFocused] = useState(false)
+  const playerInputRef = useRef<HTMLInputElement>(null)
 
   const { label: bonusCountdown, closed } = useCountdown(deadline)
+
+  // Clear search state whenever viewing resets to self
+  useEffect(() => {
+    if (!viewingUserId) { setPlayerSearch(''); setPlayerFocused(false) }
+  }, [viewingUserId])
 
   // Rebuild player option lists when the display language changes
   const playerOptions = useMemo(() =>
@@ -126,6 +134,15 @@ export default function BonusPage() {
 
   const playerIconsMap     = useMemo(() => buildPlayerIconsMap(playerOptions),     [playerOptions])
   const goalkeeperIconsMap = useMemo(() => buildPlayerIconsMap(goalkeeperOptions), [goalkeeperOptions])
+
+  const playerResults = (playerFocused || playerSearch.trim())
+    ? members.filter(
+        (m) =>
+          m.userId !== userId &&
+          (!playerSearch.trim() ||
+            m.fullName.toLowerCase().includes(playerSearch.toLowerCase().trim()))
+      )
+    : []
 
   useEffect(() => {
     async function load() {
@@ -178,13 +195,13 @@ export default function BonusPage() {
     load()
   }, [poolId, router])
 
-  // Load member list once deadline passes
+  // Load member list as soon as the user is known
   useEffect(() => {
-    if (!closed || !poolId) return
+    if (!userId || !poolId) return
     fetch(`/api/pools/${poolId}/members/list`)
       .then((r) => r.ok ? r.json() : { members: [] })
       .then((d) => setMembers(d.members ?? []))
-  }, [closed, poolId])
+  }, [userId, poolId])
 
   async function handleSave() {
     if (!userId || closed) return
@@ -370,30 +387,46 @@ export default function BonusPage() {
         </div>
       )}
 
-      {/* Player viewer dropdown */}
+      {/* Player search — only after deadline */}
       {closed && members.length > 1 && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 shrink-0">{labels.viewingPlayer}:</span>
-          <select
-            value={viewingUserId ?? ''}
-            onChange={(e) => {
-              const uid = e.target.value
-              if (!uid) {
-                resetViewing()
-              } else {
-                const m = members.find((x) => x.userId === uid)
-                setViewingUserId(uid)
-                setViewingName(m?.fullName ?? null)
-                loadViewingBonus(uid)
-              }
-            }}
-            className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none bg-white"
-          >
-            <option value="">{labels.myPredictions}</option>
-            {members.filter((m) => m.userId !== userId).map((m) => (
-              <option key={m.userId} value={m.userId}>{m.fullName}</option>
-            ))}
-          </select>
+        <div className="relative">
+          <p className="text-xs font-medium text-gray-500 mb-1.5">👁 {labels.viewingPlayer}:</p>
+          <input
+            ref={playerInputRef}
+            type="text"
+            value={playerSearch}
+            onFocus={() => setPlayerFocused(true)}
+            onBlur={() => { setPlayerFocused(false) }}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+            placeholder={labels.searchPlayer}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
+          />
+          {playerResults.length > 0 && (
+            <ul className="absolute z-50 top-full mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-xl max-h-52 overflow-y-auto py-1">
+              {playerResults.map((m) => (
+                <li
+                  key={m.userId}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setPlayerFocused(false)
+                    setPlayerSearch('')
+                    playerInputRef.current?.blur()
+                    setViewingUserId(m.userId)
+                    setViewingName(m.fullName)
+                    loadViewingBonus(m.userId)
+                  }}
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 cursor-pointer"
+                >
+                  {m.fullName}
+                </li>
+              ))}
+            </ul>
+          )}
+          {playerFocused && playerSearch.trim() && playerResults.length === 0 && (
+            <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-xl px-3 py-2 text-sm text-gray-400">
+              {labels.searchHint}
+            </div>
+          )}
         </div>
       )}
 

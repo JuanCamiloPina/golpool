@@ -149,7 +149,10 @@ export async function GET(
 
   const admin = createAdminClient()
 
-  // Other users' predictions only visible after round deadline has passed
+  console.log(`[predictions GET] poolId=${poolId} roundId=${roundId} targetUid=${targetUid} requestingUid=${user.id}`)
+
+  // Other users' predictions only visible after the round deadline has passed.
+  // Only block when a deadline exists AND is still in the future.
   if (targetUid !== user.id) {
     const { data: round } = await admin
       .from('rounds')
@@ -158,7 +161,10 @@ export async function GET(
       .single()
 
     const dl = round?.prediction_deadline
-    if (!dl || new Date(dl) > new Date()) {
+    console.log(`[predictions GET] round deadline=${dl ?? 'none'}`)
+
+    if (dl && new Date(dl) > new Date()) {
+      console.log('[predictions GET] blocked — deadline not yet passed')
       return NextResponse.json({ error: 'Not yet visible' }, { status: 403 })
     }
   }
@@ -169,7 +175,11 @@ export async function GET(
     .eq('pool_id', poolId)
     .eq('user_id', targetUid)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.log('[predictions GET] query error:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
+  console.log(`[predictions GET] returning ${preds?.length ?? 0} predictions`)
   return NextResponse.json({ predictions: preds ?? [] })
 }

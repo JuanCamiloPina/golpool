@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -8,7 +8,7 @@ import { useLang } from '@/components/LanguageContext'
 import PoolTabs from '@/components/PoolTabs'
 import { getTeamName, getTeamFlagCode } from '@/lib/wc2026-teams'
 import FlagImage from '@/components/FlagImage'
-import { formatMatchDateTime, formatDeadlineShort } from '@/lib/date-utils'
+import { formatMatchTime, formatDeadlineShort } from '@/lib/date-utils'
 
 interface Round {
   id: number
@@ -16,6 +16,7 @@ interface Round {
   name_es: string
   prediction_deadline: string | null
   scoring_multiplier: number
+  order_index: number
 }
 
 interface Match {
@@ -24,6 +25,7 @@ interface Match {
   home_team: string
   away_team: string
   match_date: string
+  match_time: string | null
   venue: string
   home_score: number | null
   away_score: number | null
@@ -54,6 +56,11 @@ function useCountdown(deadline: string | null) {
   const [closed, setClosed] = useState(false)
 
   useEffect(() => {
+    // Reset every time the deadline changes (e.g. switching rounds).
+    // Without this, closed stays true when navigating from a past-deadline
+    // round to an open one because setClosed(true) is the only write inside tick.
+    setClosed(false)
+    setLabel('')
     if (!deadline) return
     function tick() {
       const diff = new Date(deadline!).getTime() - Date.now()
@@ -106,6 +113,22 @@ function isTeamTBD(team: string): boolean {
   return /^(W Match|L Match|W Group|RU Group|Best 3rd)/.test(team)
 }
 
+// Pick the right default round:
+// 1. URL param match → that round
+// 2. First round whose deadline is still in the future → active round
+// 3. All deadlines passed → last round
+// 4. Fallback → first round
+function pickDefaultRound(rds: Round[], targetOrderIndex: number | null): Round | null {
+  if (rds.length === 0) return null
+  if (targetOrderIndex !== null) {
+    const found = rds.find(r => r.order_index === targetOrderIndex)
+    if (found) return found
+  }
+  const now = new Date()
+  const active = rds.find(r => r.prediction_deadline && new Date(r.prediction_deadline) > now)
+  return active ?? rds[rds.length - 1]
+}
+
 export default function PredictPage() {
   const { t, lang } = useLang()
   const tp = t.predict
@@ -127,12 +150,18 @@ export default function PredictPage() {
   const [saving, setSaving]           = useState(false)
   const [saveMsg, setSaveMsg]         = useState<string | null>(null)
   const [error, setError]             = useState<string | null>(null)
+  const [exporting, setExporting]     = useState(false)
   const [userId, setUserId]           = useState<string | null>(null)
 
   // Viewer state
   const [members, setMembers]             = useState<Member[]>([])
   const [viewingUserId, setViewingUserId] = useState<string | null>(null)
   const [viewingName, setViewingName]     = useState<string | null>(null)
+  const [playerSearch, setPlayerSearch]   = useState('')
+  const [playerFocused, setPlayerFocused] = useState(false)
+  const playerInputRef    = useRef<HTMLInputElement>(null)
+  const selectedRoundRef  = useRef<HTMLButtonElement>(null)
+  const roundSelectorRef  = useRef<HTMLDivElement>(null)
 
   const { label: countdown, closed } = useCountdown(selectedRound?.prediction_deadline ?? null)
 
@@ -158,23 +187,27 @@ export default function PredictPage() {
 
       const { data: rds } = await supabase
         .from('rounds')
-        .select('id, name, name_es, prediction_deadline, scoring_multiplier')
+        .select('id, name, name_es, prediction_deadline, scoring_multiplier, order_index')
         .order('order_index', { ascending: true })
 
+      const roundParam = new URLSearchParams(window.location.search).get('round')
+      const targetIdx  = roundParam ? parseInt(roundParam, 10) : null
       setRounds(rds ?? [])
-      setRound((rds ?? [])[0] ?? null)
+      setRound(pickDefaultRound(rds ?? [], targetIdx))
       setLoading(false)
     }
     init()
   }, [poolId, router])
 
-  // ── Load members once deadline passes ─────────────────────────────────────
+  // ── Load member list as soon as the user is known ────────────────────────
+  // (display is still gated on `closed` — members load eagerly so the
+  //  dropdown is ready the moment the deadline passes without a refresh)
   useEffect(() => {
-    if (!closed || !poolId) return
+    if (!userId || !poolId) return
     fetch(`/api/pools/${poolId}/members/list`)
       .then((r) => r.ok ? r.json() : { members: [] })
       .then((d) => setMembers(d.members ?? []))
-  }, [closed, poolId])
+  }, [userId, poolId])
 
   // ── Load matches + predictions for the selected round ────────────────────
   const loadMatches = useCallback(async (round: Round, forUserId?: string) => {
@@ -192,43 +225,51 @@ export default function PredictPage() {
     const supabase = createClient()
     const { data: matchData } = await supabase
       .from('matches')
-      .select('id, group_name, home_team, away_team, match_date, venue, home_score, away_score, status')
+      .select('id, group_name, home_team, away_team, match_date, match_time, venue, home_score, away_score, status')
       .eq('round_id', round.id)
       .order('match_date', { ascending: true })
 
     const matchIds = (matchData ?? []).map((m) => m.id)
+    console.log('[loadMatches] round', round.id, '→', matchData?.length ?? 0, 'matches, ids:', matchIds)
+
     const targetId = forUserId ?? userId
     const predMap: Record<string, Prediction> = {}
 
-    if (targetId === userId) {
-      const { data: predData } = await supabase
-        .from('predictions')
-        .select('match_id, predicted_home_score, predicted_away_score')
-        .eq('pool_id', poolId)
-        .eq('user_id', userId)
-        .in('match_id', matchIds)
+    if (matchIds.length > 0) {
+      if (targetId === userId) {
+        const { data: predData, error: predErr } = await supabase
+          .from('predictions')
+          .select('match_id, predicted_home_score, predicted_away_score')
+          .eq('pool_id', poolId)
+          .eq('user_id', userId)
+          .in('match_id', matchIds)
 
-      for (const p of predData ?? []) {
-        predMap[p.match_id] = {
-          home: p.predicted_home_score?.toString() ?? '',
-          away: p.predicted_away_score?.toString() ?? '',
-        }
-      }
-    } else {
-      const res = await fetch(
-        `/api/pools/${poolId}/predictions?round_id=${round.id}&user_id=${targetId}`
-      )
-      if (res.ok) {
-        const data = await res.json()
-        for (const p of data.predictions ?? []) {
+        console.log('[loadMatches] own preds:', predData?.length ?? 0, 'err:', predErr?.message)
+        for (const p of predData ?? []) {
           predMap[p.match_id] = {
             home: p.predicted_home_score?.toString() ?? '',
             away: p.predicted_away_score?.toString() ?? '',
           }
         }
+      } else {
+        const res = await fetch(
+          `/api/pools/${poolId}/predictions?round_id=${round.id}&user_id=${targetId}`
+        )
+        console.log('[loadMatches] other preds API status:', res.status)
+        if (res.ok) {
+          const data = await res.json()
+          console.log('[loadMatches] other preds count:', data.predictions?.length ?? 0)
+          for (const p of data.predictions ?? []) {
+            predMap[p.match_id] = {
+              home: p.predicted_home_score?.toString() ?? '',
+              away: p.predicted_away_score?.toString() ?? '',
+            }
+          }
+        }
       }
     }
 
+    console.log('[loadMatches] predMap keys:', Object.keys(predMap).length)
     setMatches((matchData ?? []) as Match[])
     setPredictions(predMap)
     setLM(false)
@@ -237,6 +278,24 @@ export default function PredictPage() {
   useEffect(() => {
     if (selectedRound && userId) loadMatches(selectedRound)
   }, [selectedRound, userId, loadMatches])
+
+  useEffect(() => {
+    if (selectedRoundRef.current) {
+      selectedRoundRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      })
+    }
+  }, [selectedRound])
+
+  // Updates state and URL bar without a navigation (no history entry added)
+  function selectRound(r: Round) {
+    setRound(r)
+    const url = new URL(window.location.href)
+    url.searchParams.set('round', String(r.order_index))
+    window.history.replaceState(null, '', url.toString())
+  }
 
   // ── Save predictions ──────────────────────────────────────────────────────
   async function handleSave(skipConfirm = false) {
@@ -285,17 +344,207 @@ export default function PredictPage() {
     if (upsertError) {
       setError(upsertError.message)
     } else {
-      const msg = tp.savedCount.replace('{n}', String(filledRows.length))
-      setSaveMsg(msg)
       setIsEditing(false)
       setConfirmOpen(false)
-      setTimeout(() => setSaveMsg(null), 3000)
+
+      const currentIdx = rounds.findIndex(r => r.id === selectedRound!.id)
+      const nextRound  = currentIdx >= 0 && currentIdx < rounds.length - 1
+        ? rounds[currentIdx + 1]
+        : null
+
+      if (unpredicted === 0 && scheduled.length > 0 && nextRound) {
+        // All scheduled matches filled — advance to next round
+        setSaveMsg(tp.allSavedAdvancing)
+        setTimeout(() => {
+          setSaveMsg(null)
+          selectRound(nextRound)
+        }, 1500)
+      } else {
+        setSaveMsg(tp.savedCount.replace('{n}', String(filledRows.length)))
+        setTimeout(() => setSaveMsg(null), 3000)
+      }
+    }
+  }
+
+  // ── Export to Excel ───────────────────────────────────────────────────────
+  async function handleExport() {
+    if (!selectedRound || !closed) return
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/pools/${poolId}/export?round_id=${selectedRound.id}`)
+      if (!res.ok) return
+
+      const data = await res.json() as {
+        poolName: string
+        isAdmin: boolean
+        round: { name: string; name_es: string; scoring_multiplier: number }
+        members: {
+          userId: string; fullName: string; email: string
+          totalPoints: number; bonusPoints: number
+          pointsMd1: number; pointsMd2: number; pointsMd3: number
+          pointsR32: number; pointsR16: number; pointsQf: number
+          pointsSf: number; pointsFinal: number
+        }[]
+        matches: Match[]
+        predictions: {
+          user_id: string; match_id: string
+          predicted_home_score: number; predicted_away_score: number
+          points_earned: number | null
+        }[]
+      }
+
+      const XLSX = await import('xlsx')
+      const { members: mems, matches: allMatches, predictions: preds, round: rnd, poolName, isAdmin } = data
+      const mul2 = rnd.scoring_multiplier
+      const pending = tp.exportPending
+
+      // pred lookup: userId → matchId → { home, away, pts }
+      const predMap: Record<string, Record<string, { home: number; away: number; pts: number | null }>> = {}
+      for (const p of preds) {
+        if (!predMap[p.user_id]) predMap[p.user_id] = {}
+        predMap[p.user_id][p.match_id] = {
+          home: p.predicted_home_score,
+          away: p.predicted_away_score,
+          pts:  p.points_earned,
+        }
+      }
+
+      // Sort matches: group then date/time
+      const sortedMatches = [...allMatches].sort((a, b) => {
+        const ga = a.group_name ?? 'ZZZ'
+        const gb = b.group_name ?? 'ZZZ'
+        if (ga !== gb) return ga < gb ? -1 : 1
+        return (a.match_date + (a.match_time ?? '')) < (b.match_date + (b.match_time ?? '')) ? -1 : 1
+      })
+
+      // Members sorted alphabetically for secondary sort
+      const sortedMems = [...mems].sort((a, b) => a.fullName.localeCompare(b.fullName))
+
+      // ── Sheet 1: Predictions (tall format) ─────────────────────
+      const predHeaders = [
+        ...(isAdmin ? ['Email'] : []),
+        'Player Name', 'Match #', 'Date', 'Group',
+        'Home Team', 'Away Team',
+        'Home Pred', 'Away Pred',
+        'Home Score', 'Away Score', 'Points',
+      ]
+
+      const predRows: (string | number)[][] = [predHeaders]
+
+      for (let i = 0; i < sortedMatches.length; i++) {
+        const match = sortedMatches[i]
+        const hasResult = match.home_score !== null
+        const dateStr = formatMatchTime(match.match_date, match.match_time ?? '00:00:00', lang)
+        const homeTeam = getTeamName(match.home_team, lang)
+        const awayTeam = getTeamName(match.away_team, lang)
+
+        for (const mem of sortedMems) {
+          const p = predMap[mem.userId]?.[match.id]
+
+          let pts: string | number
+          if (!hasResult) {
+            pts = pending
+          } else if (!p) {
+            pts = 0
+          } else {
+            // Always calculate on the fly so the export is correct even if
+            // calculate-scores was never run (points_earned defaults to 0 in DB).
+            pts = calcBreakdown(p.home, p.away, match.home_score!, match.away_score!, mul2).total
+          }
+
+          predRows.push([
+            ...(isAdmin ? [mem.email] : []),
+            mem.fullName,
+            i + 1,
+            dateStr,
+            match.group_name ?? '—',
+            homeTeam,
+            awayTeam,
+            p ? p.home : '',
+            p ? p.away : '',
+            hasResult ? match.home_score! : pending,
+            hasResult ? match.away_score! : pending,
+            pts,
+          ])
+        }
+      }
+
+      const ws1 = XLSX.utils.aoa_to_sheet(predRows)
+
+      // Auto-fit column widths for sheet 1
+      ws1['!cols'] = predHeaders.map((h, ci) => {
+        const maxLen = predRows.reduce((mx, row) => Math.max(mx, String(row[ci] ?? '').length), 0)
+        return { wch: Math.max(maxLen, h.length) + 2 }
+      })
+
+      // ── Sheet 2: Summary (leaderboard-style) ───────────────────
+      const summaryHeaders = [
+        'Rank',
+        'Player Name',
+        ...(isAdmin ? ['Email'] : []),
+        'Total Points', 'Bonus',
+        'MD1', 'MD2', 'MD3', 'R32', 'R16', 'QF', 'SF', 'Final',
+      ]
+
+      // mems already sorted by totalPoints desc from the API; assign ranks with tie handling
+      let currentRank = 1
+      const rankedMems = mems.map((m, i) => {
+        if (i > 0 && m.totalPoints < mems[i - 1].totalPoints) currentRank = i + 1
+        return { ...m, rank: currentRank }
+      })
+
+      const summaryRows: (string | number)[][] = [
+        summaryHeaders,
+        ...rankedMems.map((m) => [
+          m.rank,
+          m.fullName,
+          ...(isAdmin ? [m.email] : []),
+          m.totalPoints,
+          m.bonusPoints,
+          m.pointsMd1, m.pointsMd2, m.pointsMd3,
+          m.pointsR32, m.pointsR16, m.pointsQf, m.pointsSf, m.pointsFinal,
+        ]),
+      ]
+
+      const ws2 = XLSX.utils.aoa_to_sheet(summaryRows)
+
+      ws2['!cols'] = summaryHeaders.map((h, ci) => {
+        const maxLen = summaryRows.reduce((mx, row) => Math.max(mx, String(row[ci] ?? '').length), 0)
+        return { wch: Math.max(maxLen, h.length) + 2 }
+      })
+
+      // ── Assemble workbook ────────────────────────────────────────
+      const wb = XLSX.utils.book_new()
+      const rawName = lang === 'es' ? rnd.name_es : rnd.name
+      const safeSheet = rawName.replace(/[\\/?*[\]:]/g, '_').substring(0, 31)
+      XLSX.utils.book_append_sheet(wb, ws1, safeSheet)
+      XLSX.utils.book_append_sheet(wb, ws2, 'Summary')
+
+      const filename = `${poolName} - ${rawName} - Predictions.xlsx`
+      XLSX.writeFile(wb, filename)
+    } finally {
+      setExporting(false)
     }
   }
 
   const mul = selectedRound?.scoring_multiplier ?? 1
   const isGroupStage = selectedRound ? selectedRound.id <= 3 : true
   const isViewingOther = !!viewingUserId
+
+  // Clear search state whenever viewing resets to self
+  useEffect(() => {
+    if (!viewingUserId) { setPlayerSearch(''); setPlayerFocused(false) }
+  }, [viewingUserId])
+
+  // Show all non-self members when focused; filter when the user types
+  const playerResults = (playerFocused || playerSearch.trim())
+    ? members.filter(
+        (m) =>
+          m.userId !== userId &&
+          (!playerSearch.trim() ||
+            m.fullName.toLowerCase().includes(playerSearch.toLowerCase().trim()))
+      )
+    : []
 
   const cancelChangedCount = matches.filter((m) => {
     const cur = predictions[m.id] ?? { home: '', away: '' }
@@ -367,6 +616,16 @@ export default function PredictPage() {
             </div>
           )}
         </div>
+        {/* Export button — after deadline, not editing */}
+        {matches.length > 0 && closed && !isEditing && (
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-600 hover:border-gray-400 transition-colors disabled:opacity-60"
+          >
+            {exporting ? '…' : tp.exportBtn}
+          </button>
+        )}
         {/* Edit button — hidden when viewing another player */}
         {matches.length > 0 && !closed && !isViewingOther && (
           isEditing ? (
@@ -394,11 +653,12 @@ export default function PredictPage() {
       </div>
 
       {/* Round selector */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div ref={roundSelectorRef} className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
         {rounds.map((r) => (
           <button
             key={r.id}
-            onClick={() => setRound(r)}
+            ref={r.id === selectedRound?.id ? selectedRoundRef : null}
+            onClick={() => selectRound(r)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               selectedRound?.id === r.id
                 ? 'bg-green-600 text-white'
@@ -410,32 +670,46 @@ export default function PredictPage() {
         ))}
       </div>
 
-      {/* Player viewer dropdown — only after deadline */}
+      {/* Player search — only after deadline */}
       {closed && members.length > 1 && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 shrink-0">{tp.viewingPlayer}:</span>
-          <select
-            value={viewingUserId ?? ''}
-            onChange={(e) => {
-              const uid = e.target.value
-              if (!uid) {
-                setViewingUserId(null)
-                setViewingName(null)
-                if (selectedRound) loadMatches(selectedRound)
-              } else {
-                const member = members.find((m) => m.userId === uid)
-                setViewingUserId(uid)
-                setViewingName(member?.fullName ?? null)
-                if (selectedRound) loadMatches(selectedRound, uid)
-              }
-            }}
-            className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none bg-white"
-          >
-            <option value="">{tp.myPredictions}</option>
-            {members.filter((m) => m.userId !== userId).map((m) => (
-              <option key={m.userId} value={m.userId}>{m.fullName}</option>
-            ))}
-          </select>
+        <div className="relative">
+          <p className="text-xs font-medium text-gray-500 mb-1.5">👁 {tp.viewingPlayer}:</p>
+          <input
+            ref={playerInputRef}
+            type="text"
+            value={playerSearch}
+            onFocus={() => setPlayerFocused(true)}
+            onBlur={() => { setPlayerFocused(false) }}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+            placeholder={tp.searchPlayer}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
+          />
+          {playerResults.length > 0 && (
+            <ul className="absolute z-50 top-full mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-xl max-h-52 overflow-y-auto py-1">
+              {playerResults.map((m) => (
+                <li
+                  key={m.userId}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setPlayerFocused(false)
+                    setPlayerSearch('')
+                    playerInputRef.current?.blur()
+                    setViewingUserId(m.userId)
+                    setViewingName(m.fullName)
+                    if (selectedRound) loadMatches(selectedRound, m.userId)
+                  }}
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 cursor-pointer"
+                >
+                  {m.fullName}
+                </li>
+              ))}
+            </ul>
+          )}
+          {playerFocused && playerSearch.trim() && playerResults.length === 0 && (
+            <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-xl px-3 py-2 text-sm text-gray-400">
+              {tp.selectPlayer}
+            </div>
+          )}
         </div>
       )}
 
@@ -524,7 +798,7 @@ export default function PredictPage() {
                     >
                       {/* Top row: date + status */}
                       <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                        <p className="text-xs text-gray-400">{formatMatchDateTime(match.match_date, lang)}</p>
+                        <p className="text-xs text-gray-400">{formatMatchTime(match.match_date, match.match_time ?? '00:00:00', lang)}</p>
                         <div className="flex items-center gap-2">
                           {/* "Not predicted" badge — view mode, open round, no existing prediction */}
                           {!isEditing && !locked && !isTBD && !hasPred && !isViewingOther && (

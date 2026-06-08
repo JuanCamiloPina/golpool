@@ -86,6 +86,7 @@ export const translations = {
       correctHome: 'Home goals',
       correctAway: 'Away goals',
       correctDiff: 'Goal difference',
+      searchPlayer: 'Search player…',
       notPredicted: 'Not predicted yet',
       missingMatches: 'You have {n} matches without predictions. Unpredicted matches won\'t earn points. Continue saving?',
       saveAnyway: 'Save anyway',
@@ -96,6 +97,10 @@ export const translations = {
       keepEditing: 'Keep editing',
       deadlineAt: '· Deadline:',
       tbdMessage: 'Predictions unlock when teams are confirmed',
+      exportBtn: '📥 Export Predictions',
+      exportPending: 'Pending',
+      exportNoPickD: 'No pick',
+      allSavedAdvancing: 'All predictions saved! Moving to next round...',
     },
     leaderboard: {
       title: 'Standings',
@@ -105,6 +110,10 @@ export const translations = {
       back: '← Dashboard',
       bonus: 'Bonus',
       roundTotals: 'Round Totals',
+      searchPlayer: 'Search player...',
+      showing: 'Showing {n} of {total} players',
+      you: 'You',
+      roundAverages: 'Round Averages',
     },
     bonus: {
       title: 'Bonus Predictions',
@@ -131,6 +140,7 @@ export const translations = {
       searchHint: 'Type to search',
       closesIn: 'Bonus picks close in:',
       deadlineAt: '· Deadline:',
+      searchPlayer: 'Search player…',
     },
     tabs: {
       home: 'Home',
@@ -214,6 +224,9 @@ export const translations = {
       approvalRequired: 'Approval required',
       removedMembers: 'Removed Members',
       restore: 'Restore',
+      officialBonusResults: '🏆 Official Bonus Results',
+      saveOfficialResults: 'Save & Calculate Points',
+      officialResultsSaved: 'Saved! Bonus points updated for all users.',
     },
     dashboard: {
       welcome: 'Welcome back',
@@ -460,6 +473,7 @@ export const translations = {
       correctHome: 'Goles local',
       correctAway: 'Goles visitante',
       correctDiff: 'Diferencia de goles',
+      searchPlayer: 'Buscar jugador…',
       notPredicted: 'Sin predicción aún',
       missingMatches: 'Tienes {n} partidos sin predicción. Los partidos sin predicción no ganarán puntos. ¿Continuar guardando?',
       saveAnyway: 'Guardar de todas formas',
@@ -470,6 +484,10 @@ export const translations = {
       keepEditing: 'Seguir editando',
       deadlineAt: '· Fecha límite:',
       tbdMessage: 'Las predicciones se activarán cuando se confirmen los equipos',
+      exportBtn: '📥 Exportar Predicciones',
+      exportPending: 'Pendiente',
+      exportNoPickD: 'Sin predicción',
+      allSavedAdvancing: '¡Predicciones guardadas! Yendo a la siguiente jornada...',
     },
     leaderboard: {
       title: 'Clasificación',
@@ -479,6 +497,10 @@ export const translations = {
       back: '← Panel',
       bonus: 'Bonus',
       roundTotals: 'Totales por Ronda',
+      searchPlayer: 'Buscar jugador...',
+      showing: 'Mostrando {n} de {total} jugadores',
+      you: 'Tú',
+      roundAverages: 'Promedio por Jornada',
     },
     bonus: {
       title: 'Predicciones Bonus',
@@ -505,6 +527,7 @@ export const translations = {
       searchHint: 'Escribe para buscar',
       closesIn: 'Los picks bonus cierran en:',
       deadlineAt: '· Fecha límite:',
+      searchPlayer: 'Buscar jugador…',
     },
     tabs: {
       home: 'Inicio',
@@ -588,6 +611,9 @@ export const translations = {
       approvalRequired: 'Requiere aprobación',
       removedMembers: 'Miembros eliminados',
       restore: 'Restaurar',
+      officialBonusResults: '🏆 Resultados Bonus Oficiales',
+      saveOfficialResults: 'Guardar y Calcular Puntos',
+      officialResultsSaved: '¡Guardado! Puntos bonus actualizados para todos.',
     },
     dashboard: {
       welcome: 'Bienvenido de nuevo',
@@ -781,12 +807,14 @@ export interface Translations {
     viewingPlayer: string; myPredictions: string; selectPlayer: string; deadlineNotPassed: string
     statusFinished: string; statusLive: string; statusUpcoming: string
     correctResult: string; correctHome: string; correctAway: string; correctDiff: string
-    notPredicted: string; missingMatches: string; saveAnyway: string; goBack: string; savedCount: string
+    searchPlayer: string; notPredicted: string; missingMatches: string; saveAnyway: string; goBack: string; savedCount: string
     cancelConfirmMsg: string; yesDiscard: string; keepEditing: string; deadlineAt: string; tbdMessage: string
+    exportBtn: string; exportPending: string; exportNoPickD: string; allSavedAdvancing: string
   }
   leaderboard: {
     title: string; player: string; total: string; noMembers: string; back: string
     bonus: string; roundTotals: string
+    searchPlayer: string; showing: string; you: string; roundAverages: string
   }
   bonus: {
     title: string; subtitle: string
@@ -795,7 +823,7 @@ export interface Translations {
     save: string; saving: string; saved: string; locked: string; placeholder: string; back: string
     edit: string; cancel: string; noAnswer: string; incompleteError: string
     totalPoints: string; viewingPlayer: string; myPredictions: string; searchHint: string
-    closesIn: string; deadlineAt: string
+    closesIn: string; deadlineAt: string; searchPlayer: string
   }
   tabs: {
     home: string; predict: string; bonus: string; standings: string; poolInfo: string; manage: string
@@ -817,6 +845,7 @@ export interface Translations {
     exportMembers: string; exportFilename: string
     openPool: string; approvalRequired: string
     removedMembers: string; restore: string
+    officialBonusResults: string; saveOfficialResults: string; officialResultsSaved: string
   }
   dashboard: {
     welcome: string; myPools: string; poolsImIn: string

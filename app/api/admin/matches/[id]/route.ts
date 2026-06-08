@@ -21,16 +21,25 @@ export async function PATCH(
 
   const { id } = await ctx.params
   const body = await request.json()
-  const { home_score, away_score, status } = body as {
+  const { home_score, away_score, status, home_team, away_team } = body as {
     home_score?: number | null
     away_score?: number | null
     status?: string
+    home_team?: string
+    away_team?: string
   }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (home_score !== undefined) update.home_score = home_score
   if (away_score !== undefined) update.away_score = away_score
   if (status !== undefined)     update.status     = status
+  if (home_team !== undefined)  update.home_team  = home_team
+  if (away_team !== undefined)  update.away_team  = away_team
+
+  const TBD_RE = /^(W Match|L Match|W Group|RU Group|Best 3rd)/
+  const isResettingToTBD =
+    (home_team !== undefined && TBD_RE.test(home_team)) ||
+    (away_team !== undefined && TBD_RE.test(away_team))
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -41,5 +50,11 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // When resetting teams back to TBD, predictions for this match are now invalid
+  if (isResettingToTBD) {
+    await admin.from('predictions').delete().eq('match_id', id)
+  }
+
   return NextResponse.json(data)
 }

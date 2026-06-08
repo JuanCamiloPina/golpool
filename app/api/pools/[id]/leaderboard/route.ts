@@ -91,13 +91,13 @@ export async function GET(
   if (userIds.length > 0) {
     const { data: bonusRows } = await admin
       .from('bonus_predictions')
-      .select('user_id, question, answer, points')
+      .select('user_id, question, answer, points_earned')
       .eq('pool_id', poolId)
       .in('user_id', userIds)
 
     for (const b of bonusRows ?? []) {
       if (b.question === 'winner') bonuses[b.user_id] = b.answer
-      bonusPoints[b.user_id] = (bonusPoints[b.user_id] ?? 0) + (b.points ?? 0)
+      bonusPoints[b.user_id] = (bonusPoints[b.user_id] ?? 0) + (b.points_earned ?? 0)
     }
   }
 

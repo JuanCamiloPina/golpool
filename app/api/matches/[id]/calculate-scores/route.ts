@@ -40,6 +40,8 @@ export async function POST(
   const round = Array.isArray(roundData) ? roundData[0] : roundData as unknown as { name: string; scoring_multiplier: number }
   const pointsColumn = roundNameToPointsColumn(round.name)
 
+  console.log(`[calculate-scores] match=${matchId} round="${round.name}" multiplier=${round.scoring_multiplier} column=${pointsColumn ?? 'none'}`)
+
   // ── Fetch all predictions for this match ──────────────────────
   const { data: predictions, error: predErr } = await admin
     .from('predictions')
