@@ -43,7 +43,9 @@ export const translations = {
       haveAccount: 'Already have an account?',
       forgotPassword: 'Forgot your password?',
       backToLogin: 'Back to login',
-      checkEmail: "Check your email — we've sent a password reset link.",
+      checkEmail: "We sent a 6-digit verification code to {email}. Enter it on the next page to reset your password.",
+      checkEmailTitle: 'Check your email ✓',
+      enterCode: 'Enter Verification Code →',
       passwordMismatch: 'Passwords do not match.',
       passwordTooShort: 'Password must be at least 8 characters.',
       otpTitle: 'Check your email',
@@ -446,7 +448,9 @@ export const translations = {
       haveAccount: '¿Ya tienes cuenta?',
       forgotPassword: '¿Olvidaste tu contraseña?',
       backToLogin: 'Volver al inicio de sesión',
-      checkEmail: 'Revisa tu correo — te enviamos un enlace para restablecer tu contraseña.',
+      checkEmail: 'Enviamos un código de verificación de 6 dígitos a {email}. Ingrésalo en la siguiente página para restablecer tu contraseña.',
+      checkEmailTitle: 'Revisa tu correo ✓',
+      enterCode: 'Ingresar Código →',
       passwordMismatch: 'Las contraseñas no coinciden.',
       passwordTooShort: 'La contraseña debe tener al menos 8 caracteres.',
       otpTitle: 'Revisa tu correo',
@@ -826,7 +830,8 @@ export interface Translations {
     fullName: string; email: string; password: string; confirmPassword: string; language: string
     loginButton: string; signupButton: string; sendResetLink: string; resetButton: string
     noAccount: string; haveAccount: string; forgotPassword: string; backToLogin: string
-    checkEmail: string; passwordMismatch: string; passwordTooShort: string
+    checkEmail: string; checkEmailTitle: string; enterCode: string
+    passwordMismatch: string; passwordTooShort: string
     otpTitle: string; otpSubtitle: string; otpCodeLabel: string; otpVerify: string
     otpNoCode: string; otpResend: string; otpResent: string; otpInvalid: string
   }
