@@ -14,12 +14,12 @@
 -- Supabase dashboard (Authentication → URL Configuration):
 --
 --   Site URL:
---     https://golpool-one.vercel.app          (production)
+--     https://mygopool.com          (production)
 --     http://localhost:3000                   (local dev)
 --
 --   Redirect URLs (add ALL of these):
---     https://golpool-one.vercel.app/auth/callback
---     https://golpool-one.vercel.app/auth/reset-password
+--     https://mygopool.com/auth/callback
+--     https://mygopool.com/auth/reset-password
 --     http://localhost:3000/auth/callback
 --     http://localhost:3000/auth/reset-password
 --

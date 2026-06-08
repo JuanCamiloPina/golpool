@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase-server'
 //
 // Required Supabase dashboard settings:
 //   Authentication → URL Configuration → Redirect URLs:
-//     https://golpool-one.vercel.app/auth/callback
+//     https://mygopool.com/auth/callback
 //     http://localhost:3000/auth/callback
 
 export async function GET(request: NextRequest) {
