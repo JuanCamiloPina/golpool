@@ -7,6 +7,7 @@ interface LanguageContextValue {
   lang: Lang
   t: Translations
   toggleLang: () => void
+  setLang: (l: Lang) => void
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null)
@@ -17,7 +18,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const toggleLang = () => setLang((l) => (l === 'en' ? 'es' : 'en'))
 
   return (
-    <LanguageContext.Provider value={{ lang, t, toggleLang }}>
+    <LanguageContext.Provider value={{ lang, t, toggleLang, setLang }}>
       {children}
     </LanguageContext.Provider>
   )

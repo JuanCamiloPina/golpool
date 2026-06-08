@@ -56,9 +56,10 @@ export default function NavBar({ userEmail, userName, isAdmin = false }: NavBarP
                   </Link>
                 )}
                 <Link
-                  href="/dashboard"
-                  className="hidden sm:inline text-sm font-medium text-gray-700 hover:text-green-600 transition-colors"
+                  href="/profile"
+                  className="hidden sm:inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-green-600 transition-colors"
                 >
+                  <span className="text-xs opacity-60">👤</span>
                   {userName ?? userEmail}
                 </Link>
                 <button

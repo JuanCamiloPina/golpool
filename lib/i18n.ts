@@ -385,6 +385,22 @@ export const translations = {
       btn4Title: 'Standings',
       btn4Sub: "See who's leading the pool",
     },
+    profile: {
+      title: 'My Profile',
+      personalInfo: 'Personal Information',
+      fullName: 'Full Name',
+      emailReadOnly: 'Email cannot be changed',
+      language: 'Language',
+      saveProfile: 'Save Changes',
+      profileSaved: 'Profile updated!',
+      changePassword: 'Change Password',
+      newPassword: 'New Password',
+      confirmPassword: 'Confirm New Password',
+      savePassword: 'Update Password',
+      passwordSaved: 'Password updated! Please log in again.',
+      passwordMismatch: 'Passwords do not match',
+      passwordTooShort: 'Password must be at least 8 characters',
+    },
   },
   es: {
     nav: {
@@ -772,6 +788,22 @@ export const translations = {
       btn4Title: 'Clasificación',
       btn4Sub: 'Mira quién va liderando',
     },
+    profile: {
+      title: 'Mi Perfil',
+      personalInfo: 'Información Personal',
+      fullName: 'Nombre Completo',
+      emailReadOnly: 'El correo no se puede cambiar',
+      language: 'Idioma',
+      saveProfile: 'Guardar Cambios',
+      profileSaved: '¡Perfil actualizado!',
+      changePassword: 'Cambiar Contraseña',
+      newPassword: 'Nueva Contraseña',
+      confirmPassword: 'Confirmar Nueva Contraseña',
+      savePassword: 'Actualizar Contraseña',
+      passwordSaved: '¡Contraseña actualizada! Por favor inicia sesión nuevamente.',
+      passwordMismatch: 'Las contraseñas no coinciden',
+      passwordTooShort: 'La contraseña debe tener al menos 8 caracteres',
+    },
   },
 } as const
 
@@ -903,5 +935,11 @@ export interface Translations {
     btn2Title: string; btn2Sub: string
     btn3Title: string; btn3Sub: string
     btn4Title: string; btn4Sub: string
+  }
+  profile: {
+    title: string; personalInfo: string; fullName: string; emailReadOnly: string; language: string
+    saveProfile: string; profileSaved: string
+    changePassword: string; newPassword: string; confirmPassword: string
+    savePassword: string; passwordSaved: string; passwordMismatch: string; passwordTooShort: string
   }
 }
