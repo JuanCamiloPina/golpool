@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase-admin'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchAllRows(query: any, label: string, maxRows = 50000): Promise<any[]> {
+  const allRows: unknown[] = []
+  const pageSize = 1000
+  let page = 0
+
+  while (allRows.length < maxRows) {
+    const { data, error } = await query
+      .range(page * pageSize, (page + 1) * pageSize - 1)
+
+    if (error) { console.error(`[export] ${label} page ${page} error:`, error); break }
+    if (!data || data.length === 0) break
+    allRows.push(...data)
+    if (data.length < pageSize) break
+    page++
+  }
+
+  console.log(`[export] ${label}: fetched ${allRows.length} rows (${page + 1} page(s))`)
+  return allRows
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -53,8 +74,8 @@ export async function GET(
     return NextResponse.json({ error: 'Export only available after round deadline' }, { status: 403 })
   }
 
-  // Fetch members, matches, and bonus predictions in parallel
-  const [{ data: memberRows }, { data: matchData }, { data: bonusPredRows }] = await Promise.all([
+  // Bounded queries — members and matches per round are small
+  const [{ data: memberRows }, { data: matchData }] = await Promise.all([
     admin
       .from('pool_members')
       .select('user_id, total_points, points_md1, points_md2, points_md3, points_r32, points_r16, points_qf, points_sf, points_final, profiles(full_name, email)')
@@ -67,23 +88,30 @@ export async function GET(
       .eq('round_id', Number(roundId))
       .order('match_date', { ascending: true })
       .order('match_time', { ascending: true }),
-    admin
-      .from('bonus_predictions')
-      .select('user_id, points_earned')
-      .eq('pool_id', poolId),
   ])
 
   const matchIds = (matchData ?? []).map((m: { id: string }) => m.id)
 
-  // Only query predictions if there are matches
-  const predictions = matchIds.length > 0
-    ? (await admin
-        .from('predictions')
-        .select('user_id, match_id, predicted_home_score, predicted_away_score, points_earned')
-        .eq('pool_id', poolId)
-        .in('match_id', matchIds)
-      ).data ?? []
-    : []
+  // Paginated queries — these can exceed 1000 rows with large pools
+  const [predictions, bonusPredRows] = await Promise.all([
+    matchIds.length > 0
+      ? fetchAllRows(
+          admin
+            .from('predictions')
+            .select('user_id, match_id, predicted_home_score, predicted_away_score, points_earned')
+            .eq('pool_id', poolId)
+            .in('match_id', matchIds),
+          'predictions'
+        )
+      : Promise.resolve([]),
+    fetchAllRows(
+      admin
+        .from('bonus_predictions')
+        .select('user_id, points_earned')
+        .eq('pool_id', poolId),
+      'bonus_predictions'
+    ),
+  ])
 
   type RawMemberRow = {
     user_id: string
@@ -94,9 +122,9 @@ export async function GET(
     profiles: { full_name: string; email: string }[] | { full_name: string; email: string } | null
   }
 
-  // Build bonus points map from bonus_predictions
+  // Build bonus points map
   const bonusMap: Record<string, number> = {}
-  for (const row of bonusPredRows ?? []) {
+  for (const row of bonusPredRows) {
     const r = row as { user_id: string; points_earned: number | null }
     bonusMap[r.user_id] = (bonusMap[r.user_id] ?? 0) + (r.points_earned ?? 0)
   }
