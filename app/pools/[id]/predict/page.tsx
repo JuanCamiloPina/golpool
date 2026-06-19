@@ -40,7 +40,7 @@ function calcBreakdown(ph: number, pa: number, ah: number, aa: number, mul: numb
   const result = Math.sign(ph - pa) === Math.sign(ah - aa)
   const homeG  = ph === ah
   const awayG  = pa === aa
-  const diff   = (ph - pa) === (ah - aa)
+  const diff   = Math.abs(ph - pa) === Math.abs(ah - aa)
   return {
     result, homeG, awayG, diff,
     resultPts: (result ? 5 : 0) * mul,

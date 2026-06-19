@@ -29,7 +29,7 @@ export function calculateMatchPoints(
   if (predictedResult === actualResult)                              base += 5
   if (predictedHome === actualHome)                                  base += 2
   if (predictedAway === actualAway)                                  base += 2
-  if ((predictedHome - predictedAway) === (actualHome - actualAway)) base += 1
+  if (Math.abs(predictedHome - predictedAway) === Math.abs(actualHome - actualAway)) base += 1
 
   return base * scoringMultiplier
 }

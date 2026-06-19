@@ -133,6 +133,10 @@ export async function POST(request: NextRequest) {
     await recalculateMemberTotals(admin, Array.from(bonusSums.values()))
   }
 
+  // Recalculate all match prediction points + member totals so total_points reflects bonus
+  const { error: rpcError } = await admin.rpc('recalculate_all_points')
+  if (rpcError) console.error('[bonus-results] recalculate_all_points error:', rpcError)
+
   // 4. Audit log
   await admin.from('audit_log').insert({
     user_id:    user.id,

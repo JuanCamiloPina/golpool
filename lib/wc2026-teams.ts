@@ -13,7 +13,7 @@ export const FLAGS: Record<string, string> = {
   'Cape Verde':         '🇨🇻',
   'Colombia':           '🇨🇴',
   'Croatia':            '🇭🇷',
-  'Curaçao':            '🇨🇼',
+  'Curacao':            '🇨🇼',
   'Czech Republic':     '🇨🇿',
   'DR Congo':           '🇨🇩',
   'Ecuador':            '🇪🇨',
@@ -47,7 +47,7 @@ export const FLAGS: Record<string, string> = {
   'Switzerland':        '🇨🇭',
   'Tunisia':            '🇹🇳',
   'Turkey':             '🇹🇷',
-  'United States':      '🇺🇸',
+  'USA':                '🇺🇸',
   'Uruguay':            '🇺🇾',
   'Uzbekistan':         '🇺🇿',
 }
@@ -64,14 +64,14 @@ export function getTeamFlag(englishName: string): string {
 export const WC2026_TEAMS: string[] = [
   'Algeria', 'Argentina', 'Australia', 'Austria', 'Belgium',
   'Bosnia-Herzegovina', 'Brazil', 'Canada', 'Cape Verde', 'Colombia',
-  'Croatia', 'Curaçao', 'Czech Republic', 'DR Congo', 'Ecuador',
+  'Croatia', 'Curacao', 'Czech Republic', 'DR Congo', 'Ecuador',
   'Egypt', 'England', 'France', 'Germany', 'Ghana',
   'Haiti', 'Iran', 'Iraq', 'Ivory Coast', 'Japan',
   'Jordan', 'Mexico', 'Morocco', 'Netherlands', 'New Zealand',
   'Norway', 'Panama', 'Paraguay', 'Portugal', 'Qatar',
   'Saudi Arabia', 'Scotland', 'Senegal', 'South Africa', 'South Korea',
   'Spain', 'Sweden', 'Switzerland', 'Tunisia', 'Turkey',
-  'United States', 'Uruguay', 'Uzbekistan',
+  'USA', 'Uruguay', 'Uzbekistan',
 ]
 
 // English → Spanish name map (all 48 WC2026 teams)
@@ -87,7 +87,7 @@ const ES_NAMES: Record<string, string> = {
   'Cape Verde':         'Cabo Verde',
   'Colombia':           'Colombia',
   'Croatia':            'Croacia',
-  'Curaçao':            'Curazao',
+  'Curacao':            'Curazao',
   'Czech Republic':     'República Checa',
   'DR Congo':           'Congo RD',
   'Ecuador':            'Ecuador',
@@ -121,7 +121,7 @@ const ES_NAMES: Record<string, string> = {
   'Switzerland':        'Suiza',
   'Tunisia':            'Túnez',
   'Turkey':             'Turquía',
-  'United States':      'Estados Unidos',
+  'USA':                'Estados Unidos',
   'Uruguay':            'Uruguay',
   'Uzbekistan':         'Uzbekistán',
 }
@@ -176,7 +176,7 @@ export const FLAG_CODES: Record<string, string> = {
   'Chile':              'cl',
   'Colombia':           'co',
   'Croatia':            'hr',
-  'Curaçao':            'cw',
+  'Curacao':            'cw',
   'Czech Republic':     'cz',
   'DR Congo':           'cd',
   'Ecuador':            'ec',
@@ -222,7 +222,7 @@ export const FLAG_CODES: Record<string, string> = {
   'Togo':               'tg',
   'Tunisia':            'tn',
   'Turkey':             'tr',
-  'United States':      'us',
+  'USA':                'us',
   'Uruguay':            'uy',
   'Uzbekistan':         'uz',
 }

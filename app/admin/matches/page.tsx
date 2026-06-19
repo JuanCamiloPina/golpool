@@ -135,8 +135,8 @@ export default function AdminMatchesPage() {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
 
   // Calculate all scores
-  const [calcAllProgress, setCalcAllProgress] = useState<{ current: number; total: number } | null>(null)
-  const [calcAllDone, setCalcAllDone]   = useState<string | null>(null)
+  const [calcAllRunning, setCalcAllRunning]   = useState(false)
+  const [calcAllDone, setCalcAllDone]         = useState<string | null>(null)
 
   // Clear all results
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
@@ -399,6 +399,26 @@ export default function AdminMatchesPage() {
 
   // ── Bulk actions ──────────────────────────────────────────────────────────
 
+  async function loadMatches() {
+    const supabase = createClient()
+    const { data, error: matchErr } = await supabase
+      .from('matches')
+      .select('id, match_number, group_name, home_team, away_team, match_date, match_time, venue, home_score, away_score, status, rounds(id, name)')
+      .order('match_date', { ascending: true })
+    if (matchErr) { setError(matchErr.message); return }
+    const m = (data ?? []) as unknown as Match[]
+    setMatches(m)
+    const init: Record<string, ScoreState> = {}
+    m.forEach((match) => {
+      init[match.id] = {
+        home:   match.home_score?.toString() ?? '',
+        away:   match.away_score?.toString() ?? '',
+        status: match.status,
+      }
+    })
+    setScores(init)
+  }
+
   async function handleSync() {
     setSyncing(true)
     setSyncResult(null)
@@ -419,68 +439,20 @@ export default function AdminMatchesPage() {
   }
 
   async function handleCalculateAll() {
-    // Log full state so we can see exactly what's in the array
-    console.log('[calculateAll] total matches in state:', matches.length)
-    const statusCounts = matches.reduce<Record<string, number>>((acc, m) => {
-      acc[m.status] = (acc[m.status] ?? 0) + 1
-      return acc
-    }, {})
-    console.log('[calculateAll] status breakdown:', statusCounts)
-    console.log('[calculateAll] matches with scores set:', matches.filter(m => m.home_score !== null).length)
-
-    // Filter by scores present — status label is secondary since admins may forget to set it
-    const finishedMatches = matches.filter(
-      (m) => m.home_score !== null && m.away_score !== null
-    )
-    console.log('[calculateAll] matches to calculate:', finishedMatches.length)
-
-    if (finishedMatches.length === 0) {
-      setCalcAllDone('No finished matches to calculate.')
-      setTimeout(() => setCalcAllDone(null), 4000)
-      return
-    }
-
-    setCalcAllProgress({ current: 0, total: finishedMatches.length })
+    setCalcAllRunning(true)
     setCalcAllDone(null)
     setError(null)
-
-    let succeeded = 0
-    const errors: string[] = []
-
-    for (let i = 0; i < finishedMatches.length; i++) {
-      const match = finishedMatches[i]
-      console.log(`[calculateAll] ${i + 1}/${finishedMatches.length} — match ${match.id} (${match.home_team} vs ${match.away_team})`)
-
-      try {
-        const res = await fetch(`/api/matches/${match.id}/calculate-scores`, { method: 'POST' })
-        const d = await res.json()
-
-        if (res.ok) {
-          console.log(`[calculateAll] ✓ ${d.updated} predictions updated`)
-          succeeded++
-        } else {
-          console.error(`[calculateAll] ✗ HTTP ${res.status}:`, d.error)
-          errors.push(`${match.home_team} vs ${match.away_team}: ${d.error ?? `HTTP ${res.status}`}`)
-        }
-      } catch (err) {
-        console.error(`[calculateAll] ✗ network error:`, err)
-        errors.push(`${match.home_team} vs ${match.away_team}: network error`)
-      }
-
-      setCalcAllProgress({ current: i + 1, total: finishedMatches.length })
+    try {
+      const res = await fetch('/api/admin/recalculate-all', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      const data = await res.json()
+      setCalcAllDone(`Done! ${data.predictionsUpdated} predictions updated`)
+      await loadMatches()
+    } catch {
+      setError('Failed to recalculate scores')
+    } finally {
+      setCalcAllRunning(false)
     }
-
-    setCalcAllProgress(null)
-
-    if (errors.length > 0) {
-      setError(`${errors.length} match(es) failed to score:\n${errors.slice(0, 5).join('\n')}`)
-    }
-
-    setCalcAllDone(
-      errors.length > 0
-        ? `Done! ${succeeded}/${finishedMatches.length} scored (${errors.length} errors — see above)`
-        : `Done! ${succeeded} match${succeeded !== 1 ? 'es' : ''} scored.`
-    )
     setTimeout(() => setCalcAllDone(null), 8000)
   }
 
@@ -658,8 +630,6 @@ export default function AdminMatchesPage() {
     )
   }
 
-  const isCalcAllRunning = calcAllProgress !== null
-
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-8">
 
@@ -668,7 +638,7 @@ export default function AdminMatchesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Match Management</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Update scores and match status. Click "Calc Scores" after entering a result.
+            Update match scores and status. Points recalculate automatically on save.
           </p>
         </div>
 
@@ -685,15 +655,18 @@ export default function AdminMatchesPage() {
           </button>
 
           {/* Calculate All */}
-          <button
-            onClick={handleCalculateAll}
-            disabled={isCalcAllRunning}
-            className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
-          >
-            {isCalcAllRunning
-              ? `🧮 Calculating… ${calcAllProgress!.current}/${calcAllProgress!.total}`
-              : '🧮 Calculate All Scores'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleCalculateAll}
+              disabled={calcAllRunning}
+              className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+            >
+              {calcAllRunning ? '🧮 Recalculating…' : '🧮 Recalculate All Scores'}
+            </button>
+            <p className="text-xs text-gray-400 text-right max-w-[220px]">
+              Auto-recalculates when you save match scores. Use this to force a full refresh.
+            </p>
+          </div>
 
           {/* Clear All */}
           <button

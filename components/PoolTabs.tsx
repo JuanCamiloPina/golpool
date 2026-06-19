@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
 
-type ActiveTab = 'home' | 'predict' | 'bonus' | 'standings' | 'poolinfo'
+type ActiveTab = 'home' | 'predict' | 'bonus' | 'standings' | 'summary' | 'poolinfo'
 
 interface PoolTabsProps {
   poolId: string
@@ -33,6 +33,7 @@ export default function PoolTabs({ poolId, activeTab }: PoolTabsProps) {
     { key: 'predict',   label: `⚽ ${t.tabs.predict}`,   href: `/pools/${poolId}/predict`     },
     { key: 'bonus',     label: `⭐ ${t.tabs.bonus}`,     href: `/pools/${poolId}/bonus`       },
     { key: 'standings', label: `🏆 ${t.tabs.standings}`, href: `/pools/${poolId}/leaderboard` },
+    { key: 'summary',   label: `📊 ${t.tabs.summary}`,   href: `/pools/${poolId}/summary`     },
     { key: 'poolinfo',  label: `📋 ${t.tabs.poolInfo}`,  href: `/pools/${poolId}?tab=info`    },
   ] as const
 

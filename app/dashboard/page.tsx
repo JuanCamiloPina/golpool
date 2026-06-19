@@ -16,6 +16,7 @@ interface OwnedPool {
   approvedCount: number
   pendingCount: number
   myPoints: number | null
+  myRank: number | null
 }
 
 interface JoinedPool {
@@ -25,6 +26,8 @@ interface JoinedPool {
   invite_code: string
   status: MemberStatus
   total_points: number
+  myRank: number | null
+  approvedCount: number
 }
 
 export default function DashboardPage() {
@@ -66,19 +69,25 @@ export default function DashboardPage() {
 
       let memberCounts: Record<string, { approved: number; pending: number }> = {}
       let adminPointsMap: Record<string, number> = {}
+      // all approved member points per owned pool, for rank computation
+      let ownedMemberPoints: Record<string, number[]> = {}
 
       if (ownedRaw && ownedRaw.length > 0) {
         const poolIds = ownedRaw.map((p) => p.id)
 
         const [{ data: memberRows }, { data: adminMemberships }] = await Promise.all([
-          supabase.from('pool_members').select('pool_id, status').in('pool_id', poolIds),
+          supabase.from('pool_members').select('pool_id, status, total_points').in('pool_id', poolIds),
           supabase.from('pool_members').select('pool_id, total_points').eq('user_id', user.id).in('pool_id', poolIds),
         ])
 
         for (const row of memberRows ?? []) {
           if (!memberCounts[row.pool_id]) memberCounts[row.pool_id] = { approved: 0, pending: 0 }
-          if (row.status === 'approved') memberCounts[row.pool_id].approved++
-          if (row.status === 'pending')  memberCounts[row.pool_id].pending++
+          if (row.status === 'approved') {
+            memberCounts[row.pool_id].approved++
+            if (!ownedMemberPoints[row.pool_id]) ownedMemberPoints[row.pool_id] = []
+            ownedMemberPoints[row.pool_id].push(row.total_points ?? 0)
+          }
+          if (row.status === 'pending') memberCounts[row.pool_id].pending++
         }
         for (const m of adminMemberships ?? []) {
           adminPointsMap[m.pool_id] = m.total_points
@@ -86,12 +95,21 @@ export default function DashboardPage() {
       }
 
       setOwnedPools(
-        (ownedRaw ?? []).map((p) => ({
-          id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
-          approvedCount: memberCounts[p.id]?.approved ?? 0,
-          pendingCount:  memberCounts[p.id]?.pending  ?? 0,
-          myPoints: adminPointsMap[p.id] ?? null,
-        }))
+        (ownedRaw ?? []).map((p) => {
+          const myPts = adminPointsMap[p.id] ?? null
+          let myRank: number | null = null
+          if (myPts !== null && ownedMemberPoints[p.id]) {
+            const above = ownedMemberPoints[p.id].filter(pts => pts > myPts).length
+            myRank = above + 1
+          }
+          return {
+            id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
+            approvedCount: memberCounts[p.id]?.approved ?? 0,
+            pendingCount:  memberCounts[p.id]?.pending  ?? 0,
+            myPoints: myPts,
+            myRank,
+          }
+        })
       )
 
       // ── Joined pools (not owner) ─────────────────────────────────
@@ -104,18 +122,42 @@ export default function DashboardPage() {
       const nonOwned = (memberships ?? []).filter((m) => !ownedIds.has(m.pool_id) && m.status !== 'removed')
 
       if (nonOwned.length > 0) {
-        const { data: poolsData } = await supabase
-          .from('pools')
-          .select('id, name, description, invite_code')
-          .in('id', nonOwned.map((m) => m.pool_id))
-          .eq('is_archived', false)
+        const joinedPoolIds = nonOwned.map((m) => m.pool_id)
+
+        const [{ data: poolsData }, { data: allMemberPts }] = await Promise.all([
+          supabase
+            .from('pools')
+            .select('id, name, description, invite_code')
+            .in('id', joinedPoolIds)
+            .eq('is_archived', false),
+          supabase
+            .from('pool_members')
+            .select('pool_id, total_points')
+            .in('pool_id', joinedPoolIds)
+            .eq('status', 'approved'),
+        ])
+
+        // Group member points by pool for rank computation
+        const ptsByPool: Record<string, number[]> = {}
+        for (const row of allMemberPts ?? []) {
+          if (!ptsByPool[row.pool_id]) ptsByPool[row.pool_id] = []
+          ptsByPool[row.pool_id].push(row.total_points ?? 0)
+        }
 
         setJoinedPools(
           (poolsData ?? []).map((p) => {
             const m = nonOwned.find((m) => m.pool_id === p.id)!
+            const poolPts = ptsByPool[p.id] ?? []
+            const approvedCount = poolPts.length
+            let myRank: number | null = null
+            if (m.status === 'approved') {
+              const above = poolPts.filter(pts => pts > (m.total_points ?? 0)).length
+              myRank = above + 1
+            }
             return {
               id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
               status: m.status as MemberStatus, total_points: m.total_points,
+              myRank, approvedCount,
             }
           })
         )
@@ -211,10 +253,18 @@ export default function DashboardPage() {
                   )}
 
                   {pool.status === 'approved' && (
-                    <p className="text-xs text-gray-500">
-                      <span className="font-semibold text-green-600 text-sm">{pool.total_points}</span>{' '}
-                      {d.pts}
-                    </p>
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-gray-500">
+                        <span className="font-semibold text-green-600 text-sm">{pool.total_points}</span>{' '}
+                        {d.pts}
+                      </p>
+                      {pool.myRank !== null && (
+                        <p className="text-xs text-gray-400">
+                          {d.rank}: <span className="font-semibold text-gray-600">#{pool.myRank}</span>{' '}
+                          {d.rankOf} {pool.approvedCount}
+                        </p>
+                      )}
+                    </div>
                   )}
 
                   {pool.status === 'pending' && (
@@ -296,10 +346,18 @@ export default function DashboardPage() {
                 </div>
 
                 {pool.myPoints !== null && (
-                  <p className="text-xs text-gray-500">
-                    <span className="font-semibold text-green-600 text-sm">{pool.myPoints}</span>{' '}
-                    {d.yourScore}
-                  </p>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-gray-500">
+                      <span className="font-semibold text-green-600 text-sm">{pool.myPoints}</span>{' '}
+                      {d.yourScore}
+                    </p>
+                    {pool.myRank !== null && (
+                      <p className="text-xs text-gray-400">
+                        {d.rank}: <span className="font-semibold text-gray-600">#{pool.myRank}</span>{' '}
+                        {d.rankOf} {pool.approvedCount}
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 <div className="mt-auto flex gap-2">

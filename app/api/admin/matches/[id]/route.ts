@@ -56,5 +56,9 @@ export async function PATCH(
     await admin.from('predictions').delete().eq('match_id', id)
   }
 
-  return NextResponse.json(data)
+  // Auto-recalculate all points after a score save; log but don't block the response
+  const { error: rpcError } = await admin.rpc('recalculate_all_points')
+  if (rpcError) console.error('[match-patch] recalculate_all_points error:', rpcError)
+
+  return NextResponse.json({ ...data, pointsRecalculated: !rpcError })
 }

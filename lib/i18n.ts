@@ -149,8 +149,33 @@ export const translations = {
       predict: 'Predict',
       bonus: 'Bonus',
       standings: 'Standings',
+      summary: 'Insights',
       poolInfo: 'Pool Info',
       manage: 'Manage Pool →',
+    },
+    summary: {
+      title: 'Match Insights',
+      selectRound: 'Round',
+      selectMatch: 'Match',
+      totalPredictions: 'total predictions',
+      validScores: 'valid scores',
+      didNotPredict: 'did not predict',
+      outcomeSummary: 'Outcome Summary',
+      mostPopular: 'Most Popular Scores',
+      mostPopularBadge: 'MOST POPULAR',
+      homeWin: '{team} Win',
+      draw: 'Draw',
+      awayWin: '{team} Win',
+      predictions: 'predictions',
+      didNotSubmit: '{n} participants did not submit a score prediction',
+      locked: '🔒 Predictions for this match are hidden until the deadline passes',
+      pointsEarned: 'Points Earned',
+      pointsAverage: 'Average',
+      pointsMedian: 'Median',
+      pointsTop: 'Top',
+      yourPoints: 'Your Points',
+      noPrediction: 'No prediction',
+      yourPrediction: 'YOUR PREDICTION',
     },
     createPool: {
       title: 'Create a Pool',
@@ -262,6 +287,8 @@ export const translations = {
       myPoolsSubtitle: 'These are the pools you have created.',
       wantOwnPool: 'Want to run your own pool?',
       viewAndPredict: 'View Pool → Start Predicting',
+      rank: 'Rank',
+      rankOf: 'of',
     },
     poolInfo: {
       back: '← Dashboard',
@@ -296,7 +323,7 @@ export const translations = {
       correctResult: 'Correct result (W / D / L)',
       correctHome: 'Correct home score',
       correctAway: 'Correct away score',
-      correctDiff: 'Correct goal difference',
+      correctDiff: 'Correct goal margin (how close — e.g. 1–2 vs 1–0 = same 1-goal margin)',
       pts: 'pts',
 
       // ── Section 3 examples ────────────────────────────────────
@@ -554,8 +581,33 @@ export const translations = {
       predict: 'Predicciones',
       bonus: 'Bonus',
       standings: 'Clasificación',
+      summary: 'Estadísticas',
       poolInfo: 'Info',
       manage: 'Gestionar →',
+    },
+    summary: {
+      title: 'Estadísticas del Partido',
+      selectRound: 'Jornada',
+      selectMatch: 'Partido',
+      totalPredictions: 'predicciones totales',
+      validScores: 'marcadores válidos',
+      didNotPredict: 'no predijeron',
+      outcomeSummary: 'Resumen de Resultados',
+      mostPopular: 'Marcadores Más Populares',
+      mostPopularBadge: 'MÁS POPULAR',
+      homeWin: 'Gana {team}',
+      draw: 'Empate',
+      awayWin: 'Gana {team}',
+      predictions: 'predicciones',
+      didNotSubmit: '{n} participantes no enviaron predicción',
+      locked: '🔒 Las predicciones de este partido están ocultas hasta que pase la fecha límite',
+      pointsEarned: 'Puntos Ganados',
+      pointsAverage: 'Promedio',
+      pointsMedian: 'Mediana',
+      pointsTop: 'Máximo',
+      yourPoints: 'Tus Puntos',
+      noPrediction: 'Sin predicción',
+      yourPrediction: 'TU PREDICCIÓN',
     },
     createPool: {
       title: 'Crear una Polla',
@@ -667,6 +719,8 @@ export const translations = {
       myPoolsSubtitle: 'Estas son las pollas que has creado.',
       wantOwnPool: '¿Quieres crear tu propia polla?',
       viewAndPredict: 'Ver Polla → Empezar a Predecir',
+      rank: 'Posición',
+      rankOf: 'de',
     },
     poolInfo: {
       back: '← Panel',
@@ -701,7 +755,7 @@ export const translations = {
       correctResult: 'Resultado correcto (G / E / P)',
       correctHome: 'Goles local correctos',
       correctAway: 'Goles visitante correctos',
-      correctDiff: 'Diferencia de goles correcta',
+      correctDiff: 'Margen de goles correcto (distancia — ej. 1–2 vs 1–0 = mismo margen de 1 gol)',
       pts: 'pts',
 
       // ── Sección 3 ejemplos ────────────────────────────────────
@@ -863,7 +917,16 @@ export interface Translations {
     closesIn: string; deadlineAt: string; searchPlayer: string
   }
   tabs: {
-    home: string; predict: string; bonus: string; standings: string; poolInfo: string; manage: string
+    home: string; predict: string; bonus: string; standings: string; summary: string; poolInfo: string; manage: string
+  }
+  summary: {
+    title: string; selectRound: string; selectMatch: string
+    totalPredictions: string; validScores: string; didNotPredict: string
+    outcomeSummary: string; mostPopular: string; mostPopularBadge: string
+    homeWin: string; draw: string; awayWin: string; predictions: string
+    didNotSubmit: string; locked: string
+    pointsEarned: string; pointsAverage: string; pointsMedian: string; pointsTop: string
+    yourPoints: string; noPrediction: string; yourPrediction: string
   }
   createPool: {
     title: string; backDashboard: string; back: string; next: string; createPool: string; creating: string; genericError: string
@@ -897,6 +960,7 @@ export interface Translations {
     archivePool: string; archiveConfirm: string
     poolsImInSubtitle: string; noJoinedFriendly: string
     myPoolsSubtitle: string; wantOwnPool: string; viewAndPredict: string
+    rank: string; rankOf: string
   }
   poolInfo: {
     back: string; memberBadge: string

@@ -51,6 +51,7 @@ export default function LeaderboardPage() {
   const [bonuses, setBonuses]       = useState<Record<string, string>>({})
   const [bonusPoints, setBonusPoints] = useState<Record<string, number>>({})
   const [loading, setLoading]       = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [poolName, setPoolName]     = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [search, setSearch]         = useState('')
