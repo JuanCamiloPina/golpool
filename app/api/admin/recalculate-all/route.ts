@@ -9,14 +9,28 @@ function isAdmin(email: string | undefined): boolean {
 }
 
 export async function POST(_req: NextRequest) {
+  console.time('[recalculate] total')
+
+  console.time('[recalculate] createClient')
   const supabase = await createClient()
+  console.timeEnd('[recalculate] createClient')
+
+  console.time('[recalculate] getUser')
   const { data: { user } } = await supabase.auth.getUser()
+  console.timeEnd('[recalculate] getUser')
+
   if (!user || !isAdmin(user.email)) {
+    console.timeEnd('[recalculate] total')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  console.time('[recalculate] rpc')
   const admin = createAdminClient()
   const { data, error } = await admin.rpc('recalculate_all_points')
+  console.timeEnd('[recalculate] rpc')
+
+  console.timeEnd('[recalculate] total')
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   type RpcRow = { predictions_updated: number; members_updated: number }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase'
 import { useLang } from '@/components/LanguageContext'
 
 type MemberStatus = 'pending' | 'approved' | 'rejected' | 'removed'
@@ -44,125 +43,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchAll() {
-      const supabase = createClient()
+      const res = await fetch('/api/dashboard')
+      if (res.status === 401) { router.push('/auth/login'); return }
+      if (!res.ok) { setLoading(false); return }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
-
-      setEmail(user.email ?? '')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single()
-
-      setFirstName(profile?.full_name?.split(' ')[0] ?? user.email ?? '')
-
-      // ── Owned pools ──────────────────────────────────────────────
-      const { data: ownedRaw } = await supabase
-        .from('pools')
-        .select('id, name, description, invite_code, created_at')
-        .eq('owner_id', user.id)
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false })
-
-      let memberCounts: Record<string, { approved: number; pending: number }> = {}
-      let adminPointsMap: Record<string, number> = {}
-      // all approved member points per owned pool, for rank computation
-      let ownedMemberPoints: Record<string, number[]> = {}
-
-      if (ownedRaw && ownedRaw.length > 0) {
-        const poolIds = ownedRaw.map((p) => p.id)
-
-        const [{ data: memberRows }, { data: adminMemberships }] = await Promise.all([
-          supabase.from('pool_members').select('pool_id, status, total_points').in('pool_id', poolIds),
-          supabase.from('pool_members').select('pool_id, total_points').eq('user_id', user.id).in('pool_id', poolIds),
-        ])
-
-        for (const row of memberRows ?? []) {
-          if (!memberCounts[row.pool_id]) memberCounts[row.pool_id] = { approved: 0, pending: 0 }
-          if (row.status === 'approved') {
-            memberCounts[row.pool_id].approved++
-            if (!ownedMemberPoints[row.pool_id]) ownedMemberPoints[row.pool_id] = []
-            ownedMemberPoints[row.pool_id].push(row.total_points ?? 0)
-          }
-          if (row.status === 'pending') memberCounts[row.pool_id].pending++
-        }
-        for (const m of adminMemberships ?? []) {
-          adminPointsMap[m.pool_id] = m.total_points
-        }
-      }
-
-      setOwnedPools(
-        (ownedRaw ?? []).map((p) => {
-          const myPts = adminPointsMap[p.id] ?? null
-          let myRank: number | null = null
-          if (myPts !== null && ownedMemberPoints[p.id]) {
-            const above = ownedMemberPoints[p.id].filter(pts => pts > myPts).length
-            myRank = above + 1
-          }
-          return {
-            id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
-            approvedCount: memberCounts[p.id]?.approved ?? 0,
-            pendingCount:  memberCounts[p.id]?.pending  ?? 0,
-            myPoints: myPts,
-            myRank,
-          }
-        })
-      )
-
-      // ── Joined pools (not owner) ─────────────────────────────────
-      const { data: memberships } = await supabase
-        .from('pool_members')
-        .select('pool_id, status, total_points')
-        .eq('user_id', user.id)
-
-      const ownedIds = new Set((ownedRaw ?? []).map((p) => p.id))
-      const nonOwned = (memberships ?? []).filter((m) => !ownedIds.has(m.pool_id) && m.status !== 'removed')
-
-      if (nonOwned.length > 0) {
-        const joinedPoolIds = nonOwned.map((m) => m.pool_id)
-
-        const [{ data: poolsData }, { data: allMemberPts }] = await Promise.all([
-          supabase
-            .from('pools')
-            .select('id, name, description, invite_code')
-            .in('id', joinedPoolIds)
-            .eq('is_archived', false),
-          supabase
-            .from('pool_members')
-            .select('pool_id, total_points')
-            .in('pool_id', joinedPoolIds)
-            .eq('status', 'approved'),
-        ])
-
-        // Group member points by pool for rank computation
-        const ptsByPool: Record<string, number[]> = {}
-        for (const row of allMemberPts ?? []) {
-          if (!ptsByPool[row.pool_id]) ptsByPool[row.pool_id] = []
-          ptsByPool[row.pool_id].push(row.total_points ?? 0)
-        }
-
-        setJoinedPools(
-          (poolsData ?? []).map((p) => {
-            const m = nonOwned.find((m) => m.pool_id === p.id)!
-            const poolPts = ptsByPool[p.id] ?? []
-            const approvedCount = poolPts.length
-            let myRank: number | null = null
-            if (m.status === 'approved') {
-              const above = poolPts.filter(pts => pts > (m.total_points ?? 0)).length
-              myRank = above + 1
-            }
-            return {
-              id: p.id, name: p.name, description: p.description, invite_code: p.invite_code,
-              status: m.status as MemberStatus, total_points: m.total_points,
-              myRank, approvedCount,
-            }
-          })
-        )
-      }
-
+      const data = await res.json()
+      setFirstName(data.firstName ?? '')
+      setEmail(data.email ?? '')
+      setOwnedPools(data.ownedPools ?? [])
+      setJoinedPools(data.joinedPools ?? [])
       setLoading(false)
     }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLang } from '@/components/LanguageContext'
@@ -51,11 +51,9 @@ export default function LeaderboardPage() {
   const [bonuses, setBonuses]       = useState<Record<string, string>>({})
   const [bonusPoints, setBonusPoints] = useState<Record<string, number>>({})
   const [loading, setLoading]       = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [poolName, setPoolName]     = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [search, setSearch]         = useState('')
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Get the logged-in user's ID once on mount
   useEffect(() => {
@@ -78,8 +76,6 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     fetchData()
-    intervalRef.current = setInterval(fetchData, 30000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId])
 
@@ -323,7 +319,6 @@ export default function LeaderboardPage() {
         </>
       )}
 
-      <p className="text-xs text-gray-400 text-center">Updates every 30 seconds</p>
     </div>
   )
 }
