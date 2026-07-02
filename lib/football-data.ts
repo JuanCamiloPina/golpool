@@ -48,15 +48,54 @@ export async function fetchLiveMatches(): Promise<LiveMatch[]> {
   return ((data.matches ?? []) as Record<string, unknown>[])
     .filter((m) => ACTIVE_STATUSES.has(m.status as string))
     .map((m) => {
-      const score = m.score as { fullTime?: { home?: number | null; away?: number | null } } | null
-      const ht    = m.homeTeam as { name?: string } | null
-      const at    = m.awayTeam as { name?: string } | null
+      const score = m.score as {
+        duration?:    string | null
+        fullTime?:    { home?: number | null; away?: number | null } | null
+        regularTime?: { home?: number | null; away?: number | null } | null
+        extraTime?:   { home?: number | null; away?: number | null } | null
+        penalties?:   { home?: number | null; away?: number | null } | null
+      } | null
+      const ht = m.homeTeam as { name?: string } | null
+      const at = m.awayTeam as { name?: string } | null
+
+      const duration = score?.duration ?? 'REGULAR'
+      // regularTime = 90-min score, but the API can return {home: null, away: null}
+      // instead of omitting the object, so `??` alone won't fall through to fullTime
+      let base: { home?: number | null; away?: number | null } | null | undefined
+      if (score?.regularTime?.home != null) {
+        base = score.regularTime
+      } else if (duration === 'PENALTY_SHOOTOUT' && score?.penalties?.home != null && score?.fullTime?.home != null) {
+        // regularTime missing: fullTime includes penalties, so strip them back out
+        base = {
+          home: score.fullTime.home! - score.penalties.home!,
+          away: score.fullTime.away! - score.penalties.away!,
+        }
+      } else {
+        // fallback for REGULAR / EXTRA_TIME matches where regularTime is missing
+        base = score?.fullTime
+      }
+      const et = score?.extraTime
+
+      let homeScore: number | null
+      let awayScore: number | null
+
+      if (duration === 'EXTRA_TIME') {
+        // base = 90-min score, extraTime = goals scored only during ET (not cumulative)
+        homeScore = base?.home != null && et?.home != null ? base.home + et.home : base?.home ?? null
+        awayScore = base?.away != null && et?.away != null ? base.away + et.away : base?.away ?? null
+      } else {
+        // REGULAR: base = 90-min result
+        // PENALTY_SHOOTOUT: base = 90-min result; penalties excluded per pool rules
+        homeScore = base?.home ?? null
+        awayScore = base?.away ?? null
+      }
+
       return {
         apiMatchId: m.id as number,
         homeTeam:   ht?.name ?? '',
         awayTeam:   at?.name ?? '',
-        homeScore:  score?.fullTime?.home ?? null,
-        awayScore:  score?.fullTime?.away ?? null,
+        homeScore,
+        awayScore,
         status:     m.status as string,
         matchday:   m.matchday as number | null,
       }
